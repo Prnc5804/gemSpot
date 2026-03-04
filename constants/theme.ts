@@ -1,53 +1,256 @@
 /**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
+ * GemSpots Design System
+ * Premium design tokens for a funded-startup quality app
  */
 
 import { Platform } from 'react-native';
 
-const tintColorLight = '#0a7ea4';
-const tintColorDark = '#fff';
-
+// ─── Semantic Color Palette ────────────────────────────────────────────────
 export const Colors = {
+  primary: '#10B981',
+  primaryLight: '#34D399',
+  primaryDark: '#059669',
+
+  accent: '#F59E0B',
+  accentLight: '#FBBF24',
+  accentDark: '#D97706',
+
+  success: '#22C55E',
+  warning: '#F59E0B',
+  error: '#EF4444',
+  info: '#3B82F6',
+
+  // Dark mode
+  backgroundDark: '#0F172A',
+  surfaceDark: '#1E293B',
+  cardDark: '#1E293B',
+  cardDarkElevated: '#273548',
+  borderDark: '#334155',
+  textPrimaryDark: '#F1F5F9',
+  textSecondaryDark: '#94A3B8',
+  textMutedDark: '#64748B',
+
+  // Light mode
+  backgroundLight: '#F8FAFC',
+  surfaceLight: '#FFFFFF',
+  cardLight: '#FFFFFF',
+  cardLightElevated: '#F1F5F9',
+  borderLight: '#E2E8F0',
+  textPrimaryLight: '#0F172A',
+  textSecondaryLight: '#475569',
+  textMutedLight: '#94A3B8',
+
+  // Universal
+  white: '#FFFFFF',
+  black: '#000000',
+  overlay: 'rgba(0, 0, 0, 0.5)',
+  overlayLight: 'rgba(0, 0, 0, 0.3)',
+
+  // Gradients (as arrays for LinearGradient)
+  gradientPrimary: ['#10B981', '#059669'] as const,
+  gradientAccent: ['#F59E0B', '#D97706'] as const,
+  gradientDark: ['#0F172A', '#1E293B'] as const,
+  gradientCard: ['rgba(30, 41, 59, 0.8)', 'rgba(15, 23, 42, 0.95)'] as const,
+  gradientGem: ['#10B981', '#3B82F6'] as const,
+  gradientFire: ['#EF4444', '#F59E0B'] as const,
+  gradientGold: ['#F59E0B', '#EAB308', '#CA8A04'] as const,
+  gradientSilver: ['#94A3B8', '#CBD5E1', '#94A3B8'] as const,
+  gradientBronze: ['#D97706', '#B45309', '#D97706'] as const,
+
+  // Tab bar
+  tabBarDark: 'rgba(15, 23, 42, 0.95)',
+  tabBarLight: 'rgba(255, 255, 255, 0.95)',
+  tabActiveIndicator: '#10B981',
+};
+
+// ─── Theme Presets (for useColorScheme) ────────────────────────────────────
+export const Theme = {
   light: {
-    text: '#11181C',
-    background: '#fff',
-    tint: tintColorLight,
-    icon: '#687076',
-    tabIconDefault: '#687076',
-    tabIconSelected: tintColorLight,
+    text: Colors.textPrimaryLight,
+    textSecondary: Colors.textSecondaryLight,
+    textMuted: Colors.textMutedLight,
+    background: Colors.backgroundLight,
+    surface: Colors.surfaceLight,
+    card: Colors.cardLight,
+    cardElevated: Colors.cardLightElevated,
+    border: Colors.borderLight,
+    tint: Colors.primary,
+    icon: Colors.textSecondaryLight,
+    tabIconDefault: Colors.textMutedLight,
+    tabIconSelected: Colors.primary,
+    tabBar: Colors.tabBarLight,
   },
   dark: {
-    text: '#ECEDEE',
-    background: '#151718',
-    tint: tintColorDark,
-    icon: '#9BA1A6',
-    tabIconDefault: '#9BA1A6',
-    tabIconSelected: tintColorDark,
+    text: Colors.textPrimaryDark,
+    textSecondary: Colors.textSecondaryDark,
+    textMuted: Colors.textMutedDark,
+    background: Colors.backgroundDark,
+    surface: Colors.surfaceDark,
+    card: Colors.cardDark,
+    cardElevated: Colors.cardDarkElevated,
+    border: Colors.borderDark,
+    tint: Colors.primary,
+    icon: Colors.textSecondaryDark,
+    tabIconDefault: Colors.textMutedDark,
+    tabIconSelected: Colors.primary,
+    tabBar: Colors.tabBarDark,
   },
 };
 
+// ─── Spacing Scale ─────────────────────────────────────────────────────────
+export const Spacing = {
+  xs: 4,
+  sm: 8,
+  md: 16,
+  lg: 24,
+  xl: 32,
+  '2xl': 40,
+  '3xl': 48,
+} as const;
+
+// ─── Border Radius Tokens ──────────────────────────────────────────────────
+export const Radius = {
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 24,
+  full: 999,
+} as const;
+
+// ─── Typography Scale ──────────────────────────────────────────────────────
+export const Typography = {
+  screenTitle: {
+    fontSize: 24,
+    fontWeight: '700' as const,
+    fontFamily: 'Inter_700Bold',
+    letterSpacing: -0.5,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600' as const,
+    fontFamily: 'Inter_600SemiBold',
+    letterSpacing: -0.3,
+  },
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: '500' as const,
+    fontFamily: 'Inter_500Medium',
+    letterSpacing: -0.2,
+  },
+  body: {
+    fontSize: 14,
+    fontWeight: '400' as const,
+    fontFamily: 'Inter_400Regular',
+    letterSpacing: 0,
+  },
+  caption: {
+    fontSize: 12,
+    fontWeight: '300' as const,
+    fontFamily: 'Inter_300Light',
+    letterSpacing: 0.2,
+  },
+  button: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    fontFamily: 'Inter_600SemiBold',
+    letterSpacing: 0.3,
+  },
+  badge: {
+    fontSize: 11,
+    fontWeight: '700' as const,
+    fontFamily: 'Inter_700Bold',
+    letterSpacing: 0.5,
+  },
+} as const;
+
+// ─── Shadows ───────────────────────────────────────────────────────────────
+export const Shadows = {
+  sm: {
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  md: {
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+  },
+  lg: {
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+  },
+  xl: {
+    elevation: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+  },
+  glow: (color: string) => ({
+    elevation: 8,
+    shadowColor: color,
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+  }),
+} as const;
+
+// ─── Animation Constants ───────────────────────────────────────────────────
+export const Animation = {
+  fast: 150,
+  normal: 250,
+  slow: 400,
+  spring: {
+    damping: 15,
+    stiffness: 150,
+    mass: 1,
+  },
+  pressScale: 0.95,
+  bounceScale: 1.15,
+} as const;
+
+// ─── Layout Constants ──────────────────────────────────────────────────────
+export const Layout = {
+  sectionSpacing: Spacing.lg,
+  sectionPaddingBottom: Spacing.md,
+  screenPadding: Spacing.md,
+  cardGap: Spacing.sm,
+  tabBarHeight: 80,
+  headerHeight: 56,
+  buttonHeight: 48,
+  inputHeight: 48,
+  chipHeight: 36,
+  avatarSm: 32,
+  avatarMd: 44,
+  avatarLg: 64,
+  avatarXl: 80,
+} as const;
+
+// ─── Fonts (for Expo Font loading) ─────────────────────────────────────────
 export const Fonts = Platform.select({
   ios: {
-    /** iOS `UIFontDescriptorSystemDesignDefault` */
-    sans: 'system-ui',
-    /** iOS `UIFontDescriptorSystemDesignSerif` */
+    sans: 'Inter_400Regular',
     serif: 'ui-serif',
-    /** iOS `UIFontDescriptorSystemDesignRounded` */
     rounded: 'ui-rounded',
-    /** iOS `UIFontDescriptorSystemDesignMonospaced` */
     mono: 'ui-monospace',
   },
   default: {
-    sans: 'normal',
+    sans: 'Inter_400Regular',
     serif: 'serif',
-    rounded: 'normal',
+    rounded: 'Inter_400Regular',
     mono: 'monospace',
   },
   web: {
-    sans: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+    sans: "'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
     serif: "Georgia, 'Times New Roman', serif",
-    rounded: "'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif",
+    rounded: "'Inter', sans-serif",
     mono: "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
   },
 });
