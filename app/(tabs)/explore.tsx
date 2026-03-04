@@ -1,9 +1,8 @@
 /**
- * Discover Screen — Search, filter, and browse video grid
- * Filters are pinned at top, only the video grid scrolls
+ * Discover Screen — Fetches from Firestore + mock fallback
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -16,13 +15,15 @@ import {
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius, Typography, Layout } from '@/constants/theme';
-import { CATEGORIES, SUBSCRIBER_RANGES, type Category, type SubscriberRange, type SortOption } from '@/constants/types';
+import { CATEGORIES, SUBSCRIBER_RANGES, type Category, type SubscriberRange, type SortOption, type Video } from '@/constants/types';
 import { MOCK_VIDEOS } from '@/constants/mock-data';
 import { VideoCard } from '@/components/video-card';
 import { CategoryChip } from '@/components/category-chip';
 import { SearchBar } from '@/components/search-bar';
 import { EmptyState } from '@/components/empty-state';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { db } from '@/services/firebase';
+import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
 
 const SORT_OPTIONS: SortOption[] = ['Most Votes', 'Newest', 'Trending'];
 
@@ -31,12 +32,32 @@ export default function DiscoverScreen() {
   const insets = useSafeAreaInsets();
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
-  const [selectedSort, setSelectedSort] = useState<SortOption>('Most Votes');
+  const [selectedSort, setSelectedSort] = useState<SortOption>('Newest');
   const [selectedSubRange, setSelectedSubRange] = useState<SubscriberRange | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [allVideos, setAllVideos] = useState<Video[]>(MOCK_VIDEOS);
+
+  const fetchVideos = async () => {
+    try {
+      const q = query(collection(db, 'videos'), orderBy('createdAt', 'desc'), limit(50));
+      const snap = await getDocs(q);
+      const firestoreVideos = snap.docs.map((d: any) => ({ ...d.data(), id: d.id })) as Video[];
+
+      const combined = [...firestoreVideos, ...MOCK_VIDEOS.filter(
+        mv => !firestoreVideos.some(fv => fv.id === mv.id)
+      )];
+      setAllVideos(combined);
+    } catch (error) {
+      console.log('Firestore fetch failed, using mock data:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchVideos();
+  }, []);
 
   const filtered = useMemo(() => {
-    let result = [...MOCK_VIDEOS];
+    let result = [...allVideos];
 
     if (search.length > 0) {
       const q = search.toLowerCase();
@@ -50,25 +71,22 @@ export default function DiscoverScreen() {
     }
 
     if (selectedSubRange) {
-      const maxSubs = {
-        'Under 100': 100,
-        'Under 500': 500,
-        'Under 1K': 1000,
-        'Under 5K': 5000,
-      }[selectedSubRange];
-      result = result.filter((v) => v.subscriberCount < maxSubs);
+      const maxSubs: Record<string, number> = {
+        'Under 100': 100, 'Under 500': 500, 'Under 1K': 1000, 'Under 5K': 5000,
+      };
+      result = result.filter((v) => v.subscriberCount < maxSubs[selectedSubRange]);
     }
 
     if (selectedSort === 'Most Votes') {
-      result.sort((a, b) => b.voteCount - a.voteCount);
+      result.sort((a, b) => (b.voteCount || 0) - (a.voteCount || 0));
     } else if (selectedSort === 'Newest') {
-      result.sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
+      result.sort((a, b) => (b.submittedAt || '').localeCompare(a.submittedAt || ''));
     } else if (selectedSort === 'Trending') {
       result = result.filter((v) => v.isTrending);
     }
 
     return result;
-  }, [search, selectedCategory, selectedSort, selectedSubRange]);
+  }, [search, selectedCategory, selectedSort, selectedSubRange, allVideos]);
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>

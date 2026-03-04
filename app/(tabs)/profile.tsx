@@ -2,7 +2,7 @@
  * Profile Screen — Shows real auth user, or login prompt if not signed in
  */
 
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     View,
     Text,
@@ -11,6 +11,8 @@ import {
     Image,
     Pressable,
     ActivityIndicator,
+    Alert,
+    RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -19,6 +21,8 @@ import { Colors, Spacing, Radius, Typography, Shadows, Layout } from '@/constant
 import { ALL_BADGES } from '@/constants/mock-data';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/contexts/auth-context';
+import { getVideosByUser, deleteVideo } from '@/services/video-service';
+import type { Video } from '@/constants/types';
 
 type MenuItem = { icon: keyof typeof Ionicons.glyphMap; label: string; route: string; color: string; roles: string[] };
 
@@ -33,6 +37,50 @@ export default function ProfileScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { user, isLoading, isAuthenticated, signOut } = useAuth();
+    const [myVideos, setMyVideos] = useState<Video[]>([]);
+    const [loadingVideos, setLoadingVideos] = useState(false);
+    const [refreshing, setRefreshing] = useState(false);
+
+    const loadMyVideos = useCallback(async () => {
+        if (!user?.id) return;
+        setLoadingVideos(true);
+        try {
+            const videos = await getVideosByUser(user.id);
+            setMyVideos(videos);
+        } catch (e) {
+            console.log('Failed to load user videos:', e);
+        } finally {
+            setLoadingVideos(false);
+        }
+    }, [user?.id]);
+
+    useEffect(() => {
+        if (isAuthenticated && user?.id) {
+            loadMyVideos();
+        }
+    }, [isAuthenticated, user?.id, loadMyVideos]);
+
+    const handleDeleteVideo = (videoId: string, title: string) => {
+        Alert.alert(
+            'Delete Video',
+            `Are you sure you want to delete "${title}"?\n\nThis cannot be undone.`,
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Delete', style: 'destructive',
+                    onPress: async () => {
+                        const result = await deleteVideo(videoId, user!.id);
+                        if (result.success) {
+                            setMyVideos(prev => prev.filter(v => v.id !== videoId));
+                            Alert.alert('Deleted', 'Video removed successfully');
+                        } else {
+                            Alert.alert('Error', result.error || 'Failed to delete');
+                        }
+                    },
+                },
+            ]
+        );
+    };
 
     // ── Loading State ──
     if (isLoading) {
@@ -177,6 +225,38 @@ export default function ProfileScreen() {
                             </View>
                         ))}
                     </View>
+                </View>
+
+                {/* My Submissions */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>📤 My Submissions ({myVideos.length})</Text>
+                    {loadingVideos ? (
+                        <ActivityIndicator size="small" color={Colors.primary} style={{ marginVertical: Spacing.md }} />
+                    ) : myVideos.length === 0 ? (
+                        <View style={styles.emptySubmissions}>
+                            <Ionicons name="videocam-off" size={32} color={Colors.textMutedDark} />
+                            <Text style={styles.emptySubmissionsText}>No videos submitted yet</Text>
+                            <Text style={styles.emptySubmissionsHint}>Discover a hidden gem and share it!</Text>
+                        </View>
+                    ) : (
+                        myVideos.map((v) => (
+                            <View key={v.id} style={styles.submissionCard}>
+                                <Image source={{ uri: v.thumbnailUrl }} style={styles.submissionThumb} />
+                                <View style={styles.submissionInfo}>
+                                    <Text style={styles.submissionTitle} numberOfLines={2}>{v.title}</Text>
+                                    <Text style={styles.submissionMeta}>
+                                        {v.creatorName} · {v.voteCount || 0} votes
+                                    </Text>
+                                </View>
+                                <Pressable
+                                    style={styles.deleteBtn}
+                                    onPress={() => handleDeleteVideo(v.id, v.title)}
+                                >
+                                    <Ionicons name="trash-outline" size={18} color={Colors.error} />
+                                </Pressable>
+                            </View>
+                        ))
+                    )}
                 </View>
 
                 {/* Menu */}
@@ -487,5 +567,57 @@ const styles = StyleSheet.create({
         color: Colors.textPrimaryDark,
         flex: 1,
         fontWeight: '500',
+    },
+
+    // My Submissions
+    emptySubmissions: {
+        alignItems: 'center',
+        paddingVertical: Spacing.lg,
+        gap: Spacing.sm,
+    },
+    emptySubmissionsText: {
+        ...Typography.body,
+        color: Colors.textSecondaryDark,
+        fontWeight: '500',
+    },
+    emptySubmissionsHint: {
+        ...Typography.caption,
+        color: Colors.textMutedDark,
+    },
+    submissionCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: Spacing.sm,
+        paddingVertical: Spacing.sm,
+        borderBottomWidth: 1,
+        borderBottomColor: Colors.borderDark,
+    },
+    submissionThumb: {
+        width: 80,
+        height: 45,
+        borderRadius: Radius.sm,
+        backgroundColor: Colors.surfaceDark,
+    },
+    submissionInfo: {
+        flex: 1,
+        gap: 2,
+    },
+    submissionTitle: {
+        ...Typography.body,
+        color: Colors.textPrimaryDark,
+        fontSize: 13,
+        fontWeight: '500',
+    },
+    submissionMeta: {
+        ...Typography.caption,
+        color: Colors.textSecondaryDark,
+    },
+    deleteBtn: {
+        width: 36,
+        height: 36,
+        borderRadius: Radius.sm,
+        backgroundColor: Colors.error + '15',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
 });

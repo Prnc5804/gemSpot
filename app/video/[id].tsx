@@ -1,8 +1,8 @@
 /**
- * Video Detail Screen — Embedded player, voting, ratings, comments
+ * Video Detail Screen — Embedded YouTube player + Firestore data
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     View,
     Text,
@@ -12,37 +12,87 @@ import {
     Pressable,
     TextInput,
     Dimensions,
+    ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import { WebView } from 'react-native-webview';
 import { Colors, Spacing, Radius, Typography, Shadows, Layout, Animation } from '@/constants/theme';
 import { MOCK_VIDEOS, MOCK_COMMENTS } from '@/constants/mock-data';
 import { VideoCard } from '@/components/video-card';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, withSequence } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { db } from '@/services/firebase';
+import { doc, getDoc, collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
+import type { Video } from '@/constants/types';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const PLAYER_HEIGHT = SCREEN_WIDTH * 0.5625; // 16:9
 
 export default function VideoDetailScreen() {
     const { id } = useLocalSearchParams<{ id: string }>();
     const router = useRouter();
     const insets = useSafeAreaInsets();
 
-    const video = MOCK_VIDEOS.find((v) => v.id === id) || MOCK_VIDEOS[0];
-    const nextVideo = MOCK_VIDEOS.find((v) => v.id !== id) || MOCK_VIDEOS[1];
-
+    const [video, setVideo] = useState<Video | null>(null);
+    const [loading, setLoading] = useState(true);
     const [voted, setVoted] = useState(false);
-    const [voteCount, setVoteCount] = useState(video.voteCount);
+    const [voteCount, setVoteCount] = useState(0);
     const [comment, setComment] = useState('');
     const [isFollowing, setIsFollowing] = useState(false);
     const [pointsEarned, setPointsEarned] = useState(false);
+    const [nextVideo, setNextVideo] = useState<Video | null>(null);
 
     const voteScale = useSharedValue(1);
     const voteAnimStyle = useAnimatedStyle(() => ({
         transform: [{ scale: voteScale.value }],
     }));
+
+    useEffect(() => {
+        loadVideo();
+    }, [id]);
+
+    const loadVideo = async () => {
+        setLoading(true);
+        try {
+            // Try Firestore first
+            const docRef = doc(db, 'videos', id!);
+            const docSnap = await getDoc(docRef);
+
+            if (docSnap.exists()) {
+                const data = { ...docSnap.data(), id: docSnap.id } as Video;
+                setVideo(data);
+                setVoteCount(data.voteCount || 0);
+            } else {
+                // Fall back to mock data
+                const mockVideo = MOCK_VIDEOS.find((v) => v.id === id) || MOCK_VIDEOS[0];
+                setVideo(mockVideo);
+                setVoteCount(mockVideo.voteCount || 0);
+            }
+
+            // Load a "next" recommendation
+            const nextQuery = query(collection(db, 'videos'), orderBy('createdAt', 'desc'), limit(5));
+            const nextSnap = await getDocs(nextQuery);
+            const nextVideos = nextSnap.docs
+                .map((d: any) => ({ ...d.data(), id: d.id })) as Video[];
+            const recommendation = nextVideos.find(v => v.id !== id);
+            if (recommendation) {
+                setNextVideo(recommendation);
+            } else {
+                setNextVideo(MOCK_VIDEOS.find((v) => v.id !== id) || MOCK_VIDEOS[1]);
+            }
+        } catch (error) {
+            console.log('Failed to load video from Firestore:', error);
+            const mockVideo = MOCK_VIDEOS.find((v) => v.id === id) || MOCK_VIDEOS[0];
+            setVideo(mockVideo);
+            setVoteCount(mockVideo.voteCount || 0);
+            setNextVideo(MOCK_VIDEOS.find((v) => v.id !== id) || MOCK_VIDEOS[1]);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const handleVote = () => {
         if (!voted) {
@@ -54,6 +104,53 @@ export default function VideoDetailScreen() {
             );
         }
     };
+
+    // Extract videoId for embed
+    const getYouTubeVideoId = (v: Video): string => {
+        // Try youtubeUrl field first (real Firestore data)
+        if (v.youtubeUrl) {
+            const match = v.youtubeUrl.match(
+                /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/
+            );
+            if (match) return match[1];
+        }
+        // Try thumbnailUrl to extract videoId
+        if (v.thumbnailUrl) {
+            const match = v.thumbnailUrl.match(/\/vi\/([a-zA-Z0-9_-]{11})\//);
+            if (match) return match[1];
+        }
+        return '';
+    };
+
+    if (loading || !video) {
+        return (
+            <View style={[styles.screen, { paddingTop: insets.top, justifyContent: 'center', alignItems: 'center' }]}>
+                <ActivityIndicator size="large" color={Colors.primary} />
+            </View>
+        );
+    }
+
+    const ytVideoId = getYouTubeVideoId(video);
+
+    const youtubeHtml = ytVideoId ? `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <style>
+    * { margin: 0; padding: 0; }
+    html, body { width: 100%; height: 100%; background: #000; overflow: hidden; }
+    iframe { width: 100%; height: 100%; border: none; }
+  </style>
+</head>
+<body>
+  <iframe
+    src="https://www.youtube.com/embed/${ytVideoId}?rel=0&modestbranding=1&playsinline=1&autoplay=0"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+    allowfullscreen>
+  </iframe>
+</body>
+</html>` : '';
 
     return (
         <View style={[styles.screen, { paddingTop: insets.top }]}>
@@ -69,17 +166,34 @@ export default function VideoDetailScreen() {
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false}>
-                {/* Video Player Placeholder */}
+                {/* Embedded YouTube Player */}
                 <View style={styles.playerContainer}>
-                    <Image source={{ uri: video.thumbnailUrl }} style={styles.playerThumb} />
-                    <LinearGradient
-                        colors={['transparent', 'rgba(0,0,0,0.4)']}
-                        style={styles.playerOverlay}
-                    >
-                        <View style={[styles.bigPlayBtn, Shadows.glow(Colors.primary)]}>
-                            <Ionicons name="play" size={32} color={Colors.white} />
+                    {youtubeHtml ? (
+                        <WebView
+                            source={{ html: youtubeHtml }}
+                            style={styles.webview}
+                            allowsFullscreenVideo
+                            allowsInlineMediaPlayback
+                            mediaPlaybackRequiresUserAction={false}
+                            javaScriptEnabled
+                            scrollEnabled={false}
+                            bounces={false}
+                        />
+                    ) : (
+                        // Fallback thumbnail if no embed URL
+                        <View>
+                            <Image source={{ uri: video.thumbnailUrl }} style={styles.playerThumb} />
+                            <LinearGradient
+                                colors={['transparent', 'rgba(0,0,0,0.4)']}
+                                style={styles.playerOverlay}
+                            >
+                                <View style={[styles.bigPlayBtn, Shadows.glow(Colors.primary)]}>
+                                    <Ionicons name="play" size={32} color={Colors.white} />
+                                </View>
+                            </LinearGradient>
                         </View>
-                    </LinearGradient>
+                    )}
+
                     {/* Points Earned */}
                     {!pointsEarned && (
                         <Pressable
@@ -107,7 +221,7 @@ export default function VideoDetailScreen() {
                         <Image source={{ uri: video.creatorAvatar }} style={styles.creatorAvatar} />
                         <View style={styles.creatorInfo}>
                             <Text style={styles.creatorName}>{video.creatorName}</Text>
-                            <Text style={styles.creatorSubs}>{video.subscriberCount.toLocaleString()} subscribers</Text>
+                            <Text style={styles.creatorSubs}>{(video.subscriberCount || 0).toLocaleString()} subscribers</Text>
                         </View>
                         <Pressable
                             style={[styles.followBtn, isFollowing && styles.followBtnActive]}
@@ -127,7 +241,7 @@ export default function VideoDetailScreen() {
                         </AnimatedPressable>
                         <Pressable style={styles.actionBtn}>
                             <Ionicons name="chatbubble-outline" size={20} color={Colors.textSecondaryDark} />
-                            <Text style={styles.actionBtnText}>{video.commentCount}</Text>
+                            <Text style={styles.actionBtnText}>{video.commentCount || 0}</Text>
                         </Pressable>
                         <Pressable style={styles.actionBtn}>
                             <Ionicons name="bookmark-outline" size={20} color={Colors.textSecondaryDark} />
@@ -139,24 +253,28 @@ export default function VideoDetailScreen() {
                         </Pressable>
                     </View>
 
-                    {/* Ratings */}
-                    <Text style={styles.sectionTitle}>⭐ Ratings</Text>
-                    <View style={styles.ratingsRow}>
-                        {[
-                            { label: 'Editing', value: video.ratings.editing, icon: 'cut' },
-                            { label: 'Audio', value: video.ratings.audio, icon: 'musical-notes' },
-                            { label: 'Content', value: video.ratings.content, icon: 'bulb' },
-                        ].map((r) => (
-                            <View key={r.label} style={[styles.ratingCard, Shadows.sm]}>
-                                <Ionicons name={r.icon as any} size={18} color={Colors.accent} />
-                                <Text style={styles.ratingValue}>{r.value.toFixed(1)}</Text>
-                                <Text style={styles.ratingLabel}>{r.label}</Text>
+                    {/* Ratings — only show if ratings exist */}
+                    {video.ratings && (
+                        <>
+                            <Text style={styles.sectionTitle}>⭐ Ratings</Text>
+                            <View style={styles.ratingsRow}>
+                                {[
+                                    { label: 'Editing', value: video.ratings.editing, icon: 'cut' },
+                                    { label: 'Audio', value: video.ratings.audio, icon: 'musical-notes' },
+                                    { label: 'Content', value: video.ratings.content, icon: 'bulb' },
+                                ].map((r) => (
+                                    <View key={r.label} style={[styles.ratingCard, Shadows.sm]}>
+                                        <Ionicons name={r.icon as any} size={18} color={Colors.accent} />
+                                        <Text style={styles.ratingValue}>{(r.value || 0).toFixed(1)}</Text>
+                                        <Text style={styles.ratingLabel}>{r.label}</Text>
+                                    </View>
+                                ))}
                             </View>
-                        ))}
-                    </View>
+                        </>
+                    )}
 
                     {/* Comments */}
-                    <Text style={styles.sectionTitle}>💬 Comments ({MOCK_COMMENTS.length})</Text>
+                    <Text style={styles.sectionTitle}>💬 Comments</Text>
                     <View style={styles.commentInput}>
                         <TextInput
                             style={styles.commentTextInput}
@@ -190,11 +308,15 @@ export default function VideoDetailScreen() {
                     ))}
 
                     {/* Next Recommendation */}
-                    <Text style={styles.sectionTitle}>🔮 Next Hidden Creator</Text>
-                    <VideoCard
-                        video={nextVideo}
-                        onPress={() => router.push(`/video/${nextVideo.id}` as any)}
-                    />
+                    {nextVideo && (
+                        <>
+                            <Text style={styles.sectionTitle}>🔮 Next Hidden Creator</Text>
+                            <VideoCard
+                                video={nextVideo}
+                                onPress={() => router.push(`/video/${nextVideo.id}` as any)}
+                            />
+                        </>
+                    )}
                 </View>
 
                 <View style={{ height: Spacing.xl }} />
@@ -228,13 +350,18 @@ const styles = StyleSheet.create({
     },
     playerContainer: {
         width: SCREEN_WIDTH,
-        height: SCREEN_WIDTH * 0.5625, // 16:9
+        height: PLAYER_HEIGHT,
         backgroundColor: Colors.black,
         position: 'relative',
     },
-    playerThumb: {
+    webview: {
         width: '100%',
         height: '100%',
+        backgroundColor: Colors.black,
+    },
+    playerThumb: {
+        width: '100%',
+        height: PLAYER_HEIGHT,
     },
     playerOverlay: {
         ...StyleSheet.absoluteFillObject,
@@ -260,6 +387,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: Spacing.sm + 4,
         paddingVertical: Spacing.xs + 2,
         borderRadius: Radius.full,
+        zIndex: 10,
     },
     pointsEarned: {
         backgroundColor: 'rgba(34, 197, 94, 0.15)',

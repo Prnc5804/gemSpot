@@ -1,8 +1,4 @@
-/**
- * Home Screen — The main landing page with all content sections
- */
-
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -27,6 +23,9 @@ import { CampaignCard } from '@/components/campaign-card';
 import { ProductCard } from '@/components/product-card';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { db } from '@/services/firebase';
+import { collection, getDocs, query, orderBy, where, limit } from 'firebase/firestore';
+import type { Video, Creator } from '@/constants/types';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -35,15 +34,52 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [allVideos, setAllVideos] = useState<Video[]>(MOCK_VIDEOS);
+  const [allCreators, setAllCreators] = useState<Creator[]>(MOCK_CREATORS);
 
-  const gemOfDay = MOCK_VIDEOS.find((v) => v.isGemOfDay);
-  const trendingVideos = MOCK_VIDEOS.filter((v) => v.isTrending);
-  const newUploads = MOCK_VIDEOS.slice().sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
-  const topCreators = MOCK_CREATORS.slice(0, 6);
+  const fetchData = async () => {
+    try {
+      // Fetch videos from Firestore
+      const videosQuery = query(collection(db, 'videos'), orderBy('createdAt', 'desc'), limit(30));
+      const videosSnap = await getDocs(videosQuery);
+      const firestoreVideos = videosSnap.docs.map((d: any) => ({ ...d.data(), id: d.id })) as Video[];
 
-  const onRefresh = useCallback(() => {
+      // Fetch creators
+      const creatorsQuery = query(collection(db, 'creators'), orderBy('totalVotes', 'desc'), limit(10));
+      const creatorsSnap = await getDocs(creatorsQuery);
+      const firestoreCreators = creatorsSnap.docs.map((d: any) => ({ ...d.data(), id: d.id })) as Creator[];
+
+      // Combine Firestore data with mock data (Firestore first)
+      const combinedVideos = [...firestoreVideos, ...MOCK_VIDEOS.filter(
+        mv => !firestoreVideos.some(fv => fv.id === mv.id)
+      )];
+      const combinedCreators = [...firestoreCreators, ...MOCK_CREATORS.filter(
+        mc => !firestoreCreators.some(fc => fc.id === mc.id)
+      )];
+
+      setAllVideos(combinedVideos);
+      setAllCreators(combinedCreators);
+    } catch (error) {
+      console.log('Firestore fetch failed, using mock data:', error);
+      // Keep mock data as fallback
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const gemOfDay = allVideos.find((v) => v.isGemOfDay) || allVideos[0];
+  const trendingVideos = allVideos.filter((v) => v.isTrending).length > 0
+    ? allVideos.filter((v) => v.isTrending)
+    : allVideos.slice(0, 4);
+  const newUploads = allVideos.slice().sort((a, b) => (b.submittedAt || '').localeCompare(a.submittedAt || ''));
+  const topCreators = allCreators.slice(0, 6);
+
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 1500);
+    await fetchData();
+    setRefreshing(false);
   }, []);
 
   return (
