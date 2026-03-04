@@ -233,7 +233,7 @@ export default function UploadScreen() {
                                 {isVerifying ? (
                                     <ActivityIndicator size="small" color={Colors.white} />
                                 ) : (
-                                    <Ionicons name="checkmark-shield" size={18} color={Colors.white} />
+                                    <Ionicons name="shield-checkmark" size={18} color={Colors.white} />
                                 )}
                                 <Text style={styles.verifyBtnText}>
                                     {isVerifying ? 'Verifying...' : subCheck === 'pass' ? '✓ Verified' : 'Verify Link'}

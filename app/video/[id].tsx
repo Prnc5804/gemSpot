@@ -131,26 +131,7 @@ export default function VideoDetailScreen() {
     }
 
     const ytVideoId = getYouTubeVideoId(video);
-
-    const youtubeHtml = ytVideoId ? `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-  <style>
-    * { margin: 0; padding: 0; }
-    html, body { width: 100%; height: 100%; background: #000; overflow: hidden; }
-    iframe { width: 100%; height: 100%; border: none; }
-  </style>
-</head>
-<body>
-  <iframe
-    src="https://www.youtube.com/embed/${ytVideoId}?rel=0&modestbranding=1&playsinline=1&autoplay=0"
-    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-    allowfullscreen>
-  </iframe>
-</body>
-</html>` : '';
+    const ytWatchUrl = ytVideoId ? `https://m.youtube.com/watch?v=${ytVideoId}` : '';
 
     return (
         <View style={[styles.screen, { paddingTop: insets.top }]}>
@@ -166,18 +147,20 @@ export default function VideoDetailScreen() {
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false}>
-                {/* Embedded YouTube Player */}
+                {/* YouTube Player */}
                 <View style={styles.playerContainer}>
-                    {youtubeHtml ? (
+                    {ytWatchUrl ? (
                         <WebView
-                            source={{ html: youtubeHtml }}
+                            source={{ uri: ytWatchUrl }}
                             style={styles.webview}
                             allowsFullscreenVideo
                             allowsInlineMediaPlayback
                             mediaPlaybackRequiresUserAction={false}
                             javaScriptEnabled
+                            domStorageEnabled
                             scrollEnabled={false}
                             bounces={false}
+                            userAgent="Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
                         />
                     ) : (
                         // Fallback thumbnail if no embed URL
