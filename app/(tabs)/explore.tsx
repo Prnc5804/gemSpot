@@ -1,39 +1,39 @@
 /**
- * Discover Screen — Fetches from Firestore + mock fallback
+ * Discover Screen — Three sections: Hidden Gems, Trending Creators, New Creators
  */
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  FlatList,
   ScrollView,
+  Image,
   Pressable,
   RefreshControl,
+  TextInput,
+  Dimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Spacing, Radius, Typography, Layout } from '@/constants/theme';
-import { CATEGORIES, SUBSCRIBER_RANGES, type Category, type SubscriberRange, type SortOption, type Video } from '@/constants/types';
+import type { Video } from '@/constants/types';
 import { MOCK_VIDEOS } from '@/constants/mock-data';
-import { VideoCard } from '@/components/video-card';
-import { CategoryChip } from '@/components/category-chip';
-import { SearchBar } from '@/components/search-bar';
-import { EmptyState } from '@/components/empty-state';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { db } from '@/services/firebase';
 import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
 
-const SORT_OPTIONS: SortOption[] = ['Most Votes', 'Newest', 'Trending'];
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const CARD_THUMB_SIZE = (SCREEN_WIDTH - 32 - 12) * 0.4; // ~40% of card width
+
+type FilterTab = 'all' | 'trending' | 'hidden_gems' | 'new_creators';
 
 export default function DiscoverScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [search, setSearch] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
-  const [selectedSort, setSelectedSort] = useState<SortOption>('Newest');
-  const [selectedSubRange, setSelectedSubRange] = useState<SubscriberRange | null>(null);
+  const [activeTab, setActiveTab] = useState<FilterTab>('all');
   const [refreshing, setRefreshing] = useState(false);
   const [allVideos, setAllVideos] = useState<Video[]>(MOCK_VIDEOS);
 
@@ -42,7 +42,6 @@ export default function DiscoverScreen() {
       const q = query(collection(db, 'videos'), orderBy('createdAt', 'desc'), limit(50));
       const snap = await getDocs(q);
       const firestoreVideos = snap.docs.map((d: any) => ({ ...d.data(), id: d.id })) as Video[];
-
       const combined = [...firestoreVideos, ...MOCK_VIDEOS.filter(
         mv => !firestoreVideos.some(fv => fv.id === mv.id)
       )];
@@ -52,255 +51,421 @@ export default function DiscoverScreen() {
     }
   };
 
-  useEffect(() => {
-    fetchVideos();
+  useEffect(() => { fetchVideos(); }, []);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchVideos();
+    setRefreshing(false);
   }, []);
 
-  const filtered = useMemo(() => {
-    let result = [...allVideos];
+  // ─── Algorithm Logic ───
 
-    if (search.length > 0) {
-      const q = search.toLowerCase();
-      result = result.filter((v) =>
-        v.title.toLowerCase().includes(q) || v.creatorName.toLowerCase().includes(q)
-      );
-    }
+  // Search filter
+  const searchFiltered = useMemo(() => {
+    if (!search) return allVideos;
+    const q = search.toLowerCase();
+    return allVideos.filter(v =>
+      v.title.toLowerCase().includes(q) || v.creatorName.toLowerCase().includes(q)
+    );
+  }, [search, allVideos]);
 
-    if (selectedCategory) {
-      result = result.filter((v) => v.category === selectedCategory);
-    }
+  // 1. Hidden Gems: Creators with < 1000 subscribers, sorted by votes (quality small creators)
+  const hiddenGems = useMemo(() => {
+    return searchFiltered
+      .filter(v => v.subscriberCount < 1000)
+      .sort((a, b) => (b.voteCount || 0) - (a.voteCount || 0))
+      .slice(0, 10);
+  }, [searchFiltered]);
 
-    if (selectedSubRange) {
-      const maxSubs: Record<string, number> = {
-        'Under 100': 100, 'Under 500': 500, 'Under 1K': 1000, 'Under 5K': 5000,
-      };
-      result = result.filter((v) => v.subscriberCount < maxSubs[selectedSubRange]);
-    }
+  // 2. Trending Creators: Most votes in the platform, sorted by votes descending
+  const trendingCreators = useMemo(() => {
+    return searchFiltered
+      .slice()
+      .sort((a, b) => (b.voteCount || 0) - (a.voteCount || 0))
+      .slice(0, 10);
+  }, [searchFiltered]);
 
-    if (selectedSort === 'Most Votes') {
-      result.sort((a, b) => (b.voteCount || 0) - (a.voteCount || 0));
-    } else if (selectedSort === 'Newest') {
-      result.sort((a, b) => (b.submittedAt || '').localeCompare(a.submittedAt || ''));
-    } else if (selectedSort === 'Trending') {
-      result = result.filter((v) => v.isTrending);
-    }
+  // 3. New Creators: Most recently submitted, sorted by date
+  const newCreators = useMemo(() => {
+    return searchFiltered
+      .slice()
+      .sort((a, b) => (b.submittedAt || '').localeCompare(a.submittedAt || ''))
+      .slice(0, 10);
+  }, [searchFiltered]);
 
-    return result;
-  }, [search, selectedCategory, selectedSort, selectedSubRange, allVideos]);
+  // Format subscriber count
+  const formatSubs = (count: number): string => {
+    if (count >= 1000) return `${(count / 1000).toFixed(1)}k`;
+    return count.toString();
+  };
+
+  // ─── Creator Card Component ───
+  const CreatorListCard = ({ video, rank }: { video: Video; rank?: number }) => (
+    <Pressable
+      style={styles.creatorCard}
+      onPress={() => router.push(`/video/${video.id}` as any)}
+    >
+      {/* Thumbnail */}
+      <View style={styles.cardThumbContainer}>
+        <Image source={{ uri: video.thumbnailUrl }} style={styles.cardThumb} />
+        <View style={styles.cardPlayOverlay}>
+          <Ionicons name="play-circle" size={28} color="rgba(255,255,255,0.85)" />
+        </View>
+      </View>
+
+      {/* Info */}
+      <View style={styles.cardInfo}>
+        <View style={styles.cardNameRow}>
+          {rank !== undefined && (
+            <Text style={styles.cardRank}>{rank}.</Text>
+          )}
+          <Text style={styles.cardName} numberOfLines={1}>{video.creatorName}</Text>
+        </View>
+        <Text style={styles.cardMeta}>
+          {video.category || 'General'} · {formatSubs(video.subscriberCount)} subscribers
+        </Text>
+        <View style={styles.cardBottom}>
+          <View style={styles.categoryTag}>
+            <Text style={styles.categoryTagText}>{video.category || 'General'}</Text>
+          </View>
+          <View style={styles.voteBadge}>
+            <Ionicons name="thumbs-up" size={13} color={Colors.primary} />
+            <Text style={styles.voteText}>{video.voteCount || 0}</Text>
+          </View>
+        </View>
+      </View>
+    </Pressable>
+  );
+
+  // ─── Section Header ───
+  const SectionHead = ({ emoji, title, subtitle }: { emoji: string; title: string; subtitle?: string }) => (
+    <View style={styles.sectionHeader}>
+      <View style={styles.sectionLeft}>
+        <Text style={styles.sectionEmoji}>{emoji}</Text>
+        <Text style={styles.sectionTitle}>{title}</Text>
+      </View>
+      <Pressable style={styles.seeAllBtn}>
+        <Text style={styles.seeAllText}>See All</Text>
+        <Ionicons name="chevron-forward" size={14} color={Colors.primary} />
+      </Pressable>
+    </View>
+  );
+
+  // Should show section based on tab filter
+  const showSection = (section: 'hidden_gems' | 'trending' | 'new_creators') => {
+    if (activeTab === 'all') return true;
+    return activeTab === section;
+  };
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
 
-      {/* ─── FIXED FILTER SECTION (stays pinned at top) ─── */}
-      <View style={styles.filterSection}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.screenTitle}>Discover</Text>
-          <Text style={styles.resultCount}>{filtered.length} gems found</Text>
-        </View>
-
-        {/* Search */}
-        <SearchBar value={search} onChangeText={setSearch} />
-
-        {/* Sort Pills */}
-        <View style={styles.sortRow}>
-          {SORT_OPTIONS.map((opt) => (
-            <Pressable
-              key={opt}
-              style={[styles.sortPill, selectedSort === opt && styles.sortPillActive]}
-              onPress={() => setSelectedSort(opt)}
-            >
-              <Text style={[styles.sortText, selectedSort === opt && styles.sortTextActive]}>{opt}</Text>
-            </Pressable>
-          ))}
-        </View>
-
-        {/* Category Chips — single scrollable row */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.chipScrollView}
-          contentContainerStyle={styles.chipRow}
-        >
-          <CategoryChip
-            name="All"
-            emoji="✨"
-            isSelected={selectedCategory === null}
-            onPress={() => setSelectedCategory(null)}
+      {/* ═══ SEARCH BAR ═══ */}
+      <View style={styles.searchContainer}>
+        <View style={styles.searchBar}>
+          <Ionicons name="search-outline" size={18} color={Colors.textMutedDark} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search creators, videos..."
+            placeholderTextColor={Colors.textMutedDark}
+            value={search}
+            onChangeText={setSearch}
           />
-          {CATEGORIES.map((cat) => (
-            <CategoryChip
-              key={cat.name}
-              name={cat.name}
-              emoji={cat.emoji}
-              isSelected={selectedCategory === cat.name}
-              onPress={() => setSelectedCategory(cat.name)}
-            />
-          ))}
-        </ScrollView>
-
-        {/* Subscriber Range Filter — separate scrollable row */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.subRangeScrollView}
-          contentContainerStyle={styles.subRangeRow}
-        >
-          {SUBSCRIBER_RANGES.map((item) => (
-            <Pressable
-              key={item}
-              style={[styles.subRangeChip, selectedSubRange === item && styles.subRangeActive]}
-              onPress={() => setSelectedSubRange(selectedSubRange === item ? null : item)}
-            >
-              <Ionicons name="people-outline" size={12} color={selectedSubRange === item ? Colors.white : Colors.textMutedDark} />
-              <Text style={[styles.subRangeText, selectedSubRange === item && styles.subRangeTextActive]}>
-                {item}
-              </Text>
+          {search.length > 0 && (
+            <Pressable onPress={() => setSearch('')}>
+              <Ionicons name="close-circle" size={18} color={Colors.textMutedDark} />
             </Pressable>
-          ))}
-        </ScrollView>
+          )}
+        </View>
       </View>
 
-      {/* ─── SCROLLABLE VIDEO GRID (fills remaining space) ─── */}
-      <FlatList
-        data={filtered}
-        numColumns={2}
+      {/* ═══ FILTER TABS ═══ */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.tabRow}
+      >
+        {([
+          { key: 'trending' as FilterTab, emoji: '🔥', label: 'Trending' },
+          { key: 'hidden_gems' as FilterTab, emoji: '✨', label: 'Hidden Gems' },
+          { key: 'new_creators' as FilterTab, emoji: '🆕', label: 'New Creators' },
+        ]).map((tab) => (
+          <Pressable
+            key={tab.key}
+            style={[styles.filterTab, activeTab === tab.key && styles.filterTabActive]}
+            onPress={() => setActiveTab(activeTab === tab.key ? 'all' : tab.key)}
+          >
+            <Text style={styles.filterTabEmoji}>{tab.emoji}</Text>
+            <Text style={[styles.filterTabText, activeTab === tab.key && styles.filterTabTextActive]}>
+              {tab.label}
+            </Text>
+          </Pressable>
+        ))}
+      </ScrollView>
+
+      {/* ═══ CONTENT ═══ */}
+      <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.grid}
-        columnWrapperStyle={styles.gridRow}
-        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.content}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={() => {
-            setRefreshing(true);
-            setTimeout(() => setRefreshing(false), 1500);
-          }} tintColor={Colors.primary} />
-        }
-        renderItem={({ item }) => (
-          <View style={styles.gridItem}>
-            <VideoCard
-              video={item}
-              compact
-              onPress={() => router.push(`/video/${item.id}` as any)}
-            />
-          </View>
-        )}
-        ListEmptyComponent={
-          <EmptyState
-            icon="search-outline"
-            title="No gems found"
-            subtitle="Try adjusting your filters or search query"
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={Colors.primary}
+            colors={[Colors.primary]}
           />
         }
-        ListFooterComponent={<View style={{ height: Layout.tabBarHeight + Spacing.xl }} />}
-      />
+      >
+        {/* ═══ 1. HIDDEN GEMS ═══ */}
+        {showSection('hidden_gems') && (
+          <View style={styles.section}>
+            <SectionHead emoji="💎" title="Hidden Gems" />
+            <Text style={styles.sectionSubtitle}>Small creators with amazing content</Text>
+            {hiddenGems.length === 0 ? (
+              <Text style={styles.emptyText}>No hidden gems found</Text>
+            ) : (
+              hiddenGems.map((v) => <CreatorListCard key={v.id} video={v} />)
+            )}
+          </View>
+        )}
+
+        {/* ═══ 2. TRENDING CREATORS ═══ */}
+        {showSection('trending') && (
+          <View style={styles.section}>
+            <SectionHead emoji="🔥" title="Trending Creators" />
+            {trendingCreators.length === 0 ? (
+              <Text style={styles.emptyText}>No trending creators found</Text>
+            ) : (
+              trendingCreators.map((v, i) => <CreatorListCard key={v.id} video={v} rank={i + 1} />)
+            )}
+          </View>
+        )}
+
+        {/* ═══ 3. NEW CREATORS ═══ */}
+        {showSection('new_creators') && (
+          <View style={styles.section}>
+            <SectionHead emoji="🆕" title="New Creators" />
+            <Text style={styles.sectionSubtitle}>Recently discovered on GemSpots</Text>
+            {newCreators.length === 0 ? (
+              <Text style={styles.emptyText}>No new creators found</Text>
+            ) : (
+              newCreators.map((v) => <CreatorListCard key={v.id} video={v} />)
+            )}
+          </View>
+        )}
+
+        <View style={{ height: Layout.tabBarHeight + Spacing.xl }} />
+      </ScrollView>
     </View>
   );
 }
 
+// ═══════════════════════════════════════════════
+// STYLES
+// ═══════════════════════════════════════════════
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: Colors.backgroundDark,
   },
-  filterSection: {
-    backgroundColor: Colors.backgroundDark,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderDark,
-    paddingBottom: Spacing.xs,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
+
+  // ─── Search ───
+  searchContainer: {
     paddingHorizontal: Layout.screenPadding,
-    paddingTop: Spacing.sm,
-    paddingBottom: Spacing.xs,
+    paddingVertical: Spacing.sm,
   },
-  screenTitle: {
-    ...Typography.screenTitle,
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.cardDark,
+    borderRadius: Radius.full,
+    paddingHorizontal: 14,
+    height: 42,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: Colors.borderDark,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
     color: Colors.textPrimaryDark,
+    padding: 0,
   },
-  resultCount: {
-    ...Typography.caption,
-    color: Colors.textMutedDark,
-  },
-  sortRow: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
+
+  // ─── Filter Tabs ───
+  tabRow: {
     paddingHorizontal: Layout.screenPadding,
-    paddingTop: Spacing.xs,
     paddingBottom: Spacing.sm,
+    gap: 8,
   },
-  sortPill: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 6,
+  filterTab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     borderRadius: Radius.full,
     backgroundColor: Colors.cardDark,
     borderWidth: 1,
     borderColor: Colors.borderDark,
   },
-  sortPillActive: {
+  filterTabActive: {
     backgroundColor: Colors.primary,
     borderColor: Colors.primary,
   },
-  sortText: {
-    ...Typography.body,
-    color: Colors.textSecondaryDark,
+  filterTabEmoji: {
+    fontSize: 14,
+  },
+  filterTabText: {
     fontSize: 13,
-  },
-  sortTextActive: {
-    color: Colors.white,
     fontWeight: '600',
+    color: Colors.textSecondaryDark,
   },
-  chipScrollView: {
-    height: 44,
-    flexGrow: 0,
+  filterTabTextActive: {
+    color: Colors.white,
   },
-  chipRow: {
-    paddingHorizontal: Layout.screenPadding,
-    alignItems: 'center',
+
+  // ─── Content ───
+  content: {
+    paddingBottom: Spacing.md,
   },
-  subRangeScrollView: {
-    height: 38,
-    flexGrow: 0,
-    marginBottom: Spacing.xs,
+
+  // ─── Section ───
+  section: {
+    paddingTop: Spacing.md,
   },
-  subRangeRow: {
-    paddingHorizontal: Layout.screenPadding,
-    gap: Spacing.sm,
-    alignItems: 'center',
-  },
-  subRangeChip: {
+  sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: Spacing.sm + 4,
-    paddingVertical: 5,
-    borderRadius: Radius.full,
+    justifyContent: 'space-between',
+    paddingHorizontal: Layout.screenPadding,
+    marginBottom: 4,
+  },
+  sectionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  sectionEmoji: {
+    fontSize: 20,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: Colors.textPrimaryDark,
+  },
+  sectionSubtitle: {
+    fontSize: 13,
+    color: Colors.textMutedDark,
+    paddingHorizontal: Layout.screenPadding,
+    marginBottom: 10,
+  },
+  seeAllBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  seeAllText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.primary,
+  },
+
+  // ─── Creator Card ───
+  creatorCard: {
+    flexDirection: 'row',
+    marginHorizontal: Layout.screenPadding,
+    marginBottom: 10,
+    backgroundColor: Colors.cardDark,
+    borderRadius: 12,
+    overflow: 'hidden',
     borderWidth: 1,
     borderColor: Colors.borderDark,
   },
-  subRangeActive: {
-    backgroundColor: Colors.accent,
-    borderColor: Colors.accent,
+  cardThumbContainer: {
+    width: CARD_THUMB_SIZE,
+    height: CARD_THUMB_SIZE * 0.7,
+    position: 'relative',
   },
-  subRangeText: {
-    ...Typography.caption,
-    color: Colors.textMutedDark,
+  cardThumb: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: Colors.surfaceDark,
   },
-  subRangeTextActive: {
-    color: Colors.white,
-    fontWeight: '600',
+  cardPlayOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.2)',
   },
-  grid: {
-    paddingHorizontal: Layout.screenPadding,
-    paddingTop: Spacing.sm,
-  },
-  gridRow: {
-    gap: Spacing.sm,
-    marginBottom: Spacing.sm,
-  },
-  gridItem: {
+  cardInfo: {
     flex: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    justifyContent: 'center',
+  },
+  cardNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  cardRank: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: Colors.primary,
+  },
+  cardName: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors.textPrimaryDark,
+    flex: 1,
+  },
+  cardMeta: {
+    fontSize: 12,
+    color: Colors.textSecondaryDark,
+    marginTop: 3,
+  },
+  cardBottom: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 8,
+  },
+  categoryTag: {
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.surfaceDark,
+    borderWidth: 1,
+    borderColor: Colors.borderDark,
+  },
+  categoryTagText: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: Colors.textSecondaryDark,
+  },
+  voteBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: Radius.full,
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
+  },
+  voteText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.primary,
+  },
+
+  // ─── Empty ───
+  emptyText: {
+    fontSize: 13,
+    color: Colors.textMutedDark,
+    textAlign: 'center',
+    paddingVertical: 20,
   },
 });

@@ -6,28 +6,24 @@ import {
   ScrollView,
   Image,
   Pressable,
-  FlatList,
+  Dimensions,
   RefreshControl,
+  TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { Colors, Spacing, Radius, Typography, Shadows, Layout, Animation } from '@/constants/theme';
+import { Colors, Spacing, Radius, Typography, Shadows, Layout } from '@/constants/theme';
 import { CATEGORIES } from '@/constants/types';
-import { MOCK_VIDEOS, MOCK_CREATORS, MOCK_CAMPAIGNS, MOCK_SHOP_ITEMS } from '@/constants/mock-data';
-import { VideoCard } from '@/components/video-card';
-import { CreatorCard } from '@/components/creator-card';
+import { MOCK_VIDEOS, MOCK_CREATORS } from '@/constants/mock-data';
 import { CategoryChip } from '@/components/category-chip';
-import { SectionHeader } from '@/components/section-header';
-import { CampaignCard } from '@/components/campaign-card';
-import { ProductCard } from '@/components/product-card';
-import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { db } from '@/services/firebase';
-import { collection, getDocs, query, orderBy, where, limit } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
 import type { Video, Creator } from '@/constants/types';
 
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const THUMB_HEIGHT = SCREEN_WIDTH * 0.5625; // 16:9
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -35,46 +31,24 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [allVideos, setAllVideos] = useState<Video[]>(MOCK_VIDEOS);
-  const [allCreators, setAllCreators] = useState<Creator[]>(MOCK_CREATORS);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const fetchData = async () => {
     try {
-      // Fetch videos from Firestore
       const videosQuery = query(collection(db, 'videos'), orderBy('createdAt', 'desc'), limit(30));
       const videosSnap = await getDocs(videosQuery);
       const firestoreVideos = videosSnap.docs.map((d: any) => ({ ...d.data(), id: d.id })) as Video[];
 
-      // Fetch creators
-      const creatorsQuery = query(collection(db, 'creators'), orderBy('totalVotes', 'desc'), limit(10));
-      const creatorsSnap = await getDocs(creatorsQuery);
-      const firestoreCreators = creatorsSnap.docs.map((d: any) => ({ ...d.data(), id: d.id })) as Creator[];
-
-      // Combine Firestore data with mock data (Firestore first)
       const combinedVideos = [...firestoreVideos, ...MOCK_VIDEOS.filter(
         mv => !firestoreVideos.some(fv => fv.id === mv.id)
       )];
-      const combinedCreators = [...firestoreCreators, ...MOCK_CREATORS.filter(
-        mc => !firestoreCreators.some(fc => fc.id === mc.id)
-      )];
-
       setAllVideos(combinedVideos);
-      setAllCreators(combinedCreators);
     } catch (error) {
       console.log('Firestore fetch failed, using mock data:', error);
-      // Keep mock data as fallback
     }
   };
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const gemOfDay = allVideos.find((v) => v.isGemOfDay) || allVideos[0];
-  const trendingVideos = allVideos.filter((v) => v.isTrending).length > 0
-    ? allVideos.filter((v) => v.isTrending)
-    : allVideos.slice(0, 4);
-  const newUploads = allVideos.slice().sort((a, b) => (b.submittedAt || '').localeCompare(a.submittedAt || ''));
-  const topCreators = allCreators.slice(0, 6);
+  useEffect(() => { fetchData(); }, []);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -82,30 +56,73 @@ export default function HomeScreen() {
     setRefreshing(false);
   }, []);
 
+  // Filter videos
+  const filteredVideos = allVideos.filter(v => {
+    if (selectedCategory && v.category !== selectedCategory) return false;
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      return v.title.toLowerCase().includes(q) || v.creatorName.toLowerCase().includes(q);
+    }
+    return true;
+  });
+
+  // Compute GemScore for a video
+  const getGemScore = (v: Video): number | null => {
+    const r = v.ratings;
+    if (!r || (!r.editing && !r.audio && !r.content)) return null;
+    const avg = ((r.editing + r.audio + r.content) / 3) * 2;
+    return Math.min(10, parseFloat(avg.toFixed(1)));
+  };
+
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
-      {/* Header */}
+      {/* ═══ HEADER ═══ */}
       <View style={styles.header}>
-        <View>
+        <View style={styles.headerLeft}>
+          <Text style={styles.logoIcon}>💎</Text>
           <Text style={styles.logo}>
             Gem<Text style={styles.logoAccent}>Spots</Text>
           </Text>
-          <Text style={styles.tagline}>Discover hidden creators</Text>
         </View>
-        <View style={styles.headerIcons}>
-          <Pressable style={styles.iconBtn}>
-            <Ionicons name="search-outline" size={22} color={Colors.textPrimaryDark} />
-          </Pressable>
-          <Pressable style={styles.iconBtn}>
-            <Ionicons name="notifications-outline" size={22} color={Colors.textPrimaryDark} />
-            <View style={styles.notifDot} />
-          </Pressable>
-        </View>
+        <Pressable style={styles.searchBar}>
+          <Ionicons name="search" size={16} color={Colors.primary} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search creators..."
+            placeholderTextColor={Colors.textMutedDark}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+        </Pressable>
       </View>
 
+      {/* ═══ CATEGORY CHIPS ═══ */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.chipRow}
+      >
+        <CategoryChip
+          name="All"
+          emoji="🔥"
+          isSelected={selectedCategory === null}
+          onPress={() => setSelectedCategory(null)}
+        />
+        {CATEGORIES.map((cat) => (
+          <CategoryChip
+            key={cat.name}
+            name={cat.name}
+            emoji={cat.emoji}
+            isSelected={selectedCategory === cat.name}
+            onPress={() => setSelectedCategory(cat.name)}
+          />
+        ))}
+      </ScrollView>
+
+      {/* ═══ VERTICAL VIDEO FEED ═══ */}
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={styles.feedContent}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -115,296 +132,236 @@ export default function HomeScreen() {
           />
         }
       >
-        {/* Hidden Gem of the Day */}
-        {gemOfDay && (
-          <View style={styles.gemSection}>
-            <SectionHeader title="Hidden Gem of the Day" emoji="⭐" showSeeAll={false} />
-            <Pressable
-              style={styles.gemCard}
-              onPress={() => router.push(`/video/${gemOfDay.id}` as any)}
-            >
-              <Image source={{ uri: gemOfDay.thumbnailUrl }} style={styles.gemImage} />
-              <LinearGradient
-                colors={['transparent', 'rgba(0,0,0,0.85)']}
-                style={styles.gemGradient}
-              >
-                <View style={styles.gemBadge}>
-                  <Text style={styles.gemBadgeText}>💎 GEM OF THE DAY</Text>
-                </View>
-                <Text style={styles.gemTitle}>{gemOfDay.title}</Text>
-                <View style={styles.gemCreator}>
-                  <Image source={{ uri: gemOfDay.creatorAvatar }} style={styles.gemAvatar} />
-                  <Text style={styles.gemCreatorName}>{gemOfDay.creatorName}</Text>
-                  <View style={styles.gemDot} />
-                  <Ionicons name="chevron-up" size={14} color={Colors.primary} />
-                  <Text style={styles.gemVotes}>{gemOfDay.voteCount}</Text>
-                </View>
-              </LinearGradient>
-              <View style={styles.playBtnOverlay}>
-                <View style={[styles.playBtn, Shadows.glow(Colors.primary)]}>
-                  <Ionicons name="play" size={24} color={Colors.white} />
-                </View>
-              </View>
-            </Pressable>
+        {filteredVideos.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Ionicons name="videocam-off-outline" size={48} color={Colors.textMutedDark} />
+            <Text style={styles.emptyTitle}>No videos found</Text>
+            <Text style={styles.emptyHint}>Try a different category or search term</Text>
           </View>
+        ) : (
+          filteredVideos.map((video) => {
+            const score = getGemScore(video);
+            return (
+              <Pressable
+                key={video.id}
+                style={styles.videoCard}
+                onPress={() => router.push(`/video/${video.id}` as any)}
+              >
+                {/* Thumbnail */}
+                <View style={styles.thumbContainer}>
+                  <Image source={{ uri: video.thumbnailUrl }} style={styles.thumbnail} />
+
+                  {/* GemScore Badge */}
+                  {score !== null && (
+                    <View style={styles.gemScoreBadge}>
+                      <Ionicons name="diamond" size={12} color={Colors.white} />
+                      <Text style={styles.gemScoreText}>{score}</Text>
+                    </View>
+                  )}
+
+                  {/* Play overlay */}
+                  <View style={styles.playOverlay}>
+                    <View style={styles.playCircle}>
+                      <Ionicons name="play" size={24} color={Colors.white} />
+                    </View>
+                  </View>
+
+                  {/* Duration badge (bottom-right) */}
+                  <View style={styles.durationBadge}>
+                    <Text style={styles.durationText}>
+                      {video.viewsFromPlatform ? `${(video.viewsFromPlatform / 1000).toFixed(1)}K` : '0:00'}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Video Info Row */}
+                <View style={styles.infoRow}>
+                  <Image source={{ uri: video.creatorAvatar }} style={styles.avatarSmall} />
+                  <View style={styles.infoText}>
+                    <Text style={styles.videoTitle} numberOfLines={2}>{video.title}</Text>
+                    <Text style={styles.videoMeta}>
+                      {video.creatorName} · {(video.viewsFromPlatform || 0).toLocaleString()} views
+                    </Text>
+                  </View>
+                </View>
+              </Pressable>
+            );
+          })
         )}
 
-        {/* Categories */}
-        <SectionHeader title="Categories" emoji="📂" showSeeAll={false} />
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.chipRow}
-        >
-          <CategoryChip
-            name="All"
-            emoji="🔥"
-            isSelected={selectedCategory === null}
-            onPress={() => setSelectedCategory(null)}
-          />
-          {CATEGORIES.map((cat) => (
-            <CategoryChip
-              key={cat.name}
-              name={cat.name}
-              emoji={cat.emoji}
-              isSelected={selectedCategory === cat.name}
-              onPress={() => setSelectedCategory(cat.name)}
-            />
-          ))}
-        </ScrollView>
-
-        {/* Trending Videos */}
-        <SectionHeader title="Trending Videos" emoji="🔥" onSeeAll={() => router.push('/explore')} />
-        <FlatList
-          data={trendingVideos}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.horizontalList}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <VideoCard
-              video={item}
-              compact
-              onPress={() => router.push(`/video/${item.id}` as any)}
-            />
-          )}
-        />
-
-        {/* New Uploads */}
-        <SectionHeader title="New Uploads" emoji="🆕" onSeeAll={() => router.push('/explore')} />
-        <FlatList
-          data={newUploads.slice(0, 5)}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.horizontalList}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <VideoCard
-              video={item}
-              compact
-              onPress={() => router.push(`/video/${item.id}` as any)}
-            />
-          )}
-        />
-
-        {/* Top Creators This Week */}
-        <SectionHeader title="Top Creators This Week" emoji="🏆" onSeeAll={() => router.push('/leaderboard')} />
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.horizontalList}
-        >
-          {topCreators.map((creator) => (
-            <CreatorCard
-              key={creator.id}
-              creator={creator}
-              variant="compact"
-              onPress={() => { }}
-            />
-          ))}
-        </ScrollView>
-
-        {/* Brand Deals Highlight */}
-        <SectionHeader title="Brand Deals" emoji="🤝" onSeeAll={() => router.push('/brand-deals')} />
-        <FlatList
-          data={MOCK_CAMPAIGNS.slice(0, 3)}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.horizontalList}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <CampaignCard
-              campaign={item}
-              compact
-              onPress={() => router.push('/brand-deals')}
-            />
-          )}
-        />
-
-        {/* Creator Shop Preview */}
-        <SectionHeader title="Creator Gear" emoji="🛒" onSeeAll={() => router.push('/shop')} />
-        <FlatList
-          data={MOCK_SHOP_ITEMS.slice(0, 4)}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.horizontalList}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <ProductCard item={item} onPress={() => router.push('/shop')} />
-          )}
-        />
-
-        {/* Bottom padding for tab bar */}
         <View style={{ height: Layout.tabBarHeight + Spacing.xl }} />
       </ScrollView>
     </View>
   );
 }
 
+// ═══════════════════════════════════════════════
+// STYLES
+// ═══════════════════════════════════════════════
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: Colors.backgroundDark,
   },
+
+  // ─── Header ───
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: Layout.screenPadding,
     paddingVertical: Spacing.sm,
+    gap: 12,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  logoIcon: {
+    fontSize: 22,
   },
   logo: {
-    fontSize: 26,
-    fontFamily: 'Inter_700Bold',
-    fontWeight: '700',
+    fontSize: 22,
+    fontWeight: '800',
     color: Colors.textPrimaryDark,
-    letterSpacing: -1,
+    letterSpacing: -0.5,
   },
   logoAccent: {
     color: Colors.primary,
   },
-  tagline: {
-    ...Typography.caption,
-    color: Colors.textMutedDark,
-    marginTop: 1,
-  },
-  headerIcons: {
+  searchBar: {
+    flex: 1,
     flexDirection: 'row',
-    gap: Spacing.sm,
-  },
-  iconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: Radius.full,
+    alignItems: 'center',
     backgroundColor: Colors.cardDark,
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
-  },
-  notifDot: {
-    position: 'absolute',
-    top: 8,
-    right: 10,
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: Colors.error,
-    borderWidth: 1.5,
-    borderColor: Colors.backgroundDark,
-  },
-  scrollContent: {
-    paddingBottom: Spacing.md,
-  },
-  gemSection: {
-    marginTop: Spacing.sm,
-  },
-  gemCard: {
-    marginHorizontal: Layout.screenPadding,
-    borderRadius: Radius.xl,
-    overflow: 'hidden',
-    height: 220,
-    position: 'relative',
-    ...Shadows.lg,
-  },
-  gemImage: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: Colors.surfaceDark,
-  },
-  gemGradient: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'flex-end',
-    padding: Spacing.md,
-  },
-  gemBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: 'rgba(16, 185, 129, 0.85)',
-    paddingHorizontal: Spacing.sm + 4,
-    paddingVertical: Spacing.xs,
     borderRadius: Radius.full,
-    marginBottom: Spacing.sm,
+    paddingHorizontal: 12,
+    height: 36,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: Colors.borderDark,
   },
-  gemBadgeText: {
-    ...Typography.badge,
-    color: Colors.white,
-    letterSpacing: 1,
+  searchInput: {
+    flex: 1,
+    fontSize: 13,
+    color: Colors.textPrimaryDark,
+    padding: 0,
   },
-  gemTitle: {
-    fontSize: 20,
-    fontFamily: 'Inter_700Bold',
-    fontWeight: '700',
-    color: Colors.white,
-    marginBottom: Spacing.sm,
-    textShadowColor: 'rgba(0,0,0,0.5)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
-  },
-  gemCreator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-  },
-  gemAvatar: {
-    width: 24,
-    height: 24,
-    borderRadius: Radius.full,
-    borderWidth: 1.5,
-    borderColor: Colors.primary,
-  },
-  gemCreatorName: {
-    ...Typography.body,
-    color: Colors.white,
-    fontWeight: '500',
-  },
-  gemDot: {
-    width: 3,
-    height: 3,
-    borderRadius: 2,
-    backgroundColor: 'rgba(255,255,255,0.5)',
-  },
-  gemVotes: {
-    ...Typography.body,
-    color: Colors.primary,
-    fontWeight: '600',
-  },
-  playBtnOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  playBtn: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: 'rgba(16, 185, 129, 0.85)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+
+  // ─── Category Chips ───
   chipRow: {
     paddingHorizontal: Layout.screenPadding,
     paddingBottom: Spacing.sm,
   },
-  horizontalList: {
+
+  // ─── Feed ───
+  feedContent: {
+    paddingBottom: Spacing.md,
+  },
+
+  // ─── Video Card ───
+  videoCard: {
+    marginBottom: 20,
+  },
+  thumbContainer: {
+    width: SCREEN_WIDTH,
+    height: THUMB_HEIGHT,
+    backgroundColor: Colors.surfaceDark,
+    position: 'relative',
+  },
+  thumbnail: {
+    width: '100%',
+    height: '100%',
+  },
+  gemScoreBadge: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(16, 185, 129, 0.9)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: Radius.full,
+  },
+  gemScoreText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: Colors.white,
+  },
+  playOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  playCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: 'rgba(16, 185, 129, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  durationBadge: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  durationText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.white,
+  },
+
+  // ─── Info Row ───
+  infoRow: {
+    flexDirection: 'row',
     paddingHorizontal: Layout.screenPadding,
+    paddingTop: 10,
+    gap: 12,
+  },
+  avatarSmall: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.surfaceDark,
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
+  },
+  infoText: {
+    flex: 1,
+  },
+  videoTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: Colors.textPrimaryDark,
+    lineHeight: 20,
+  },
+  videoMeta: {
+    fontSize: 12,
+    color: Colors.textSecondaryDark,
+    marginTop: 2,
+  },
+
+  // ─── Empty ───
+  emptyState: {
+    alignItems: 'center',
+    paddingTop: 60,
+    gap: 8,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.textSecondaryDark,
+  },
+  emptyHint: {
+    fontSize: 13,
+    color: Colors.textMutedDark,
   },
 });
