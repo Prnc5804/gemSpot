@@ -88,15 +88,15 @@ export interface User {
     email: string;
     avatar: string;
     role: 'viewer' | 'creator' | 'brand';
-    points: number;
-    level: number;
-    xp: number;
-    xpToNext: number;
     streak: number;
     badges: Badge[];
     votesToday: number;
     maxVotesPerDay: number;
     joinedAt: string;
+    followers: number;
+    following: number;
+    posts: number;
+    lastActiveDate?: string;
 }
 
 export interface Comment {

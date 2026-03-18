@@ -1,34 +1,35 @@
 /**
  * Discover Screen — Three sections: Hidden Gems, Trending Creators, New Creators
- * Dark mode support via ThemeContext
+ * Fetches real data from Firestore only — no mock data
  */
 
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { Colors, Layout, Radius, Shadows, Spacing } from '@/constants/theme';
+import type { Video } from '@/constants/types';
+import { useTheme } from '@/contexts/theme-context';
+import { db } from '@/services/firebase';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { collection, getDocs, limit, orderBy, query } from 'firebase/firestore';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
+  ActivityIndicator,
+  Dimensions,
   Image,
   Pressable,
   RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
   TextInput,
-  Dimensions,
+  View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, Radius, Typography, Layout, Shadows } from '@/constants/theme';
-import type { Video } from '@/constants/types';
-import { MOCK_VIDEOS } from '@/constants/mock-data';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useTheme } from '@/contexts/theme-context';
-import { db } from '@/services/firebase';
-import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CARD_THUMB_SIZE = (SCREEN_WIDTH - 32 - 12) * 0.4;
 
 type FilterTab = 'all' | 'trending' | 'hidden_gems' | 'new_creators';
+type SortMode = 'latest' | 'trending';
 
 export default function DiscoverScreen() {
   const router = useRouter();
@@ -37,29 +38,35 @@ export default function DiscoverScreen() {
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState<FilterTab>('all');
   const [refreshing, setRefreshing] = useState(false);
-  const [allVideos, setAllVideos] = useState<Video[]>(MOCK_VIDEOS);
+  const [loading, setLoading] = useState(true);
+  const [allVideos, setAllVideos] = useState<Video[]>([]);
+  const [sortMode, setSortMode] = useState<SortMode>('latest');
 
   const fetchVideos = async () => {
     try {
-      const q = query(collection(db, 'videos'), orderBy('createdAt', 'desc'), limit(50));
+      const q = query(
+        collection(db, 'videos'),
+        orderBy(sortMode === 'trending' ? 'voteCount' : 'createdAt', 'desc'),
+        limit(50),
+      );
       const snap = await getDocs(q);
-      const firestoreVideos = snap.docs.map((d: any) => ({ ...d.data(), id: d.id })) as Video[];
-      const combined = [...firestoreVideos, ...MOCK_VIDEOS.filter(
-        mv => !firestoreVideos.some(fv => fv.id === mv.id)
-      )];
-      setAllVideos(combined);
+      const videos = snap.docs.map((d: any) => ({ ...d.data(), id: d.id })) as Video[];
+      setAllVideos(videos);
     } catch (error) {
-      console.log('Firestore fetch failed, using mock data:', error);
+      console.log('Firestore fetch failed:', error);
+      setAllVideos([]);
+    } finally {
+      setLoading(false);
     }
   };
 
-  useEffect(() => { fetchVideos(); }, []);
+  useEffect(() => { fetchVideos(); }, [sortMode]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await fetchVideos();
     setRefreshing(false);
-  }, []);
+  }, [sortMode]);
 
   const searchFiltered = useMemo(() => {
     if (!search) return allVideos;
@@ -140,10 +147,6 @@ export default function DiscoverScreen() {
         <Text style={styles.sectionEmoji}>{emoji}</Text>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>{title}</Text>
       </View>
-      <Pressable style={styles.seeAllBtn}>
-        <Text style={styles.seeAllText}>See All</Text>
-        <Ionicons name="chevron-forward" size={14} color={Colors.primary} />
-      </Pressable>
     </View>
   );
 
@@ -173,7 +176,7 @@ export default function DiscoverScreen() {
         </View>
       </View>
 
-      {/* ═══ FILTER TABS — fully visible, no clipping ═══ */}
+      {/* ═══ FILTER TABS ═══ */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -203,6 +206,19 @@ export default function DiscoverScreen() {
             </Text>
           </Pressable>
         ))}
+        {/* Sort toggle */}
+        <Pressable
+          style={[
+            styles.filterTab,
+            { backgroundColor: isDark ? colors.cardElevated : Colors.white, borderColor },
+          ]}
+          onPress={() => setSortMode(sortMode === 'latest' ? 'trending' : 'latest')}
+        >
+          <Ionicons name={sortMode === 'latest' ? 'time-outline' : 'trending-up'} size={14} color={Colors.primary} />
+          <Text style={[styles.filterTabText, { color: Colors.primary }]}>
+            {sortMode === 'latest' ? 'Latest' : 'Trending'}
+          </Text>
+        </Pressable>
       </ScrollView>
 
       {/* ═══ CONTENT ═══ */}
@@ -218,39 +234,48 @@ export default function DiscoverScreen() {
           />
         }
       >
-        {showSection('hidden_gems') && (
-          <View style={styles.section}>
-            <SectionHead emoji="💎" title="Hidden Gems" />
-            <Text style={[styles.sectionSubtitle, { color: colors.textMuted }]}>Small creators with amazing content</Text>
-            {hiddenGems.length === 0 ? (
-              <Text style={[styles.emptyText, { color: colors.textMuted }]}>No hidden gems found</Text>
-            ) : (
-              hiddenGems.map((v) => <CreatorListCard key={v.id} video={v} />)
-            )}
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={Colors.primary} />
+            <Text style={[styles.emptyText, { color: colors.textMuted }]}>Loading content...</Text>
           </View>
-        )}
+        ) : (
+          <>
+            {showSection('hidden_gems') && (
+              <View style={styles.section}>
+                <SectionHead emoji="💎" title="Hidden Gems" />
+                <Text style={[styles.sectionSubtitle, { color: colors.textMuted }]}>Small creators with amazing content</Text>
+                {hiddenGems.length === 0 ? (
+                  <Text style={[styles.emptyText, { color: colors.textMuted }]}>No hidden gems found yet</Text>
+                ) : (
+                  hiddenGems.map((v) => <CreatorListCard key={v.id} video={v} />)
+                )}
+              </View>
+            )}
 
-        {showSection('trending') && (
-          <View style={styles.section}>
-            <SectionHead emoji="🔥" title="Trending Creators" />
-            {trendingCreators.length === 0 ? (
-              <Text style={[styles.emptyText, { color: colors.textMuted }]}>No trending creators found</Text>
-            ) : (
-              trendingCreators.map((v, i) => <CreatorListCard key={v.id} video={v} rank={i + 1} />)
+            {showSection('trending') && (
+              <View style={styles.section}>
+                <SectionHead emoji="🔥" title="Trending Creators" />
+                {trendingCreators.length === 0 ? (
+                  <Text style={[styles.emptyText, { color: colors.textMuted }]}>No trending creators yet</Text>
+                ) : (
+                  trendingCreators.map((v, i) => <CreatorListCard key={v.id} video={v} rank={i + 1} />)
+                )}
+              </View>
             )}
-          </View>
-        )}
 
-        {showSection('new_creators') && (
-          <View style={styles.section}>
-            <SectionHead emoji="🆕" title="New Creators" />
-            <Text style={[styles.sectionSubtitle, { color: colors.textMuted }]}>Recently discovered on GemSpots</Text>
-            {newCreators.length === 0 ? (
-              <Text style={[styles.emptyText, { color: colors.textMuted }]}>No new creators found</Text>
-            ) : (
-              newCreators.map((v) => <CreatorListCard key={v.id} video={v} />)
+            {showSection('new_creators') && (
+              <View style={styles.section}>
+                <SectionHead emoji="🆕" title="New Creators" />
+                <Text style={[styles.sectionSubtitle, { color: colors.textMuted }]}>Recently discovered on GemSpots</Text>
+                {newCreators.length === 0 ? (
+                  <Text style={[styles.emptyText, { color: colors.textMuted }]}>No new creators found yet</Text>
+                ) : (
+                  newCreators.map((v) => <CreatorListCard key={v.id} video={v} />)
+                )}
+              </View>
             )}
-          </View>
+          </>
         )}
 
         <View style={{ height: Layout.tabBarHeight + Spacing.xl }} />
@@ -337,13 +362,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: Layout.screenPadding,
     marginBottom: 14,
   },
-  seeAllBtn: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  seeAllText: {
-    fontSize: 14,
-    fontFamily: 'Inter_600SemiBold',
-    fontWeight: '600',
-    color: Colors.primary,
-  },
   creatorCard: {
     flexDirection: 'row',
     marginHorizontal: Layout.screenPadding,
@@ -429,5 +447,10 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_400Regular',
     textAlign: 'center',
     paddingVertical: 24,
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    paddingTop: 60,
+    gap: 12,
   },
 });

@@ -2,25 +2,25 @@
  * Auth Service — Firebase Authentication (JS SDK)
  */
 
-import { auth, db } from './firebase';
+import type { User } from '@/constants/types';
 import {
     createUserWithEmailAndPassword,
-    signInWithEmailAndPassword,
     signOut as firebaseSignOut,
+    signInWithEmailAndPassword,
     updateProfile,
 } from 'firebase/auth';
 import {
-    doc,
-    setDoc,
-    getDoc,
-    updateDoc,
-    serverTimestamp,
     collection,
-    query,
-    where,
+    doc,
+    getDoc,
     getDocs,
+    query,
+    serverTimestamp,
+    setDoc,
+    updateDoc,
+    where,
 } from 'firebase/firestore';
-import type { User } from '@/constants/types';
+import { auth, db } from './firebase';
 
 /**
  * Sign up a new user
@@ -43,15 +43,15 @@ export async function signUp(
         email,
         avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=10B981&color=fff&size=128`,
         role,
-        points: 0,
-        level: 1,
-        xp: 0,
-        xpToNext: 100,
         streak: 0,
         badges: [],
         votesToday: 0,
         maxVotesPerDay: 10,
         joinedAt: new Date().toISOString(),
+        followers: 0,
+        following: 0,
+        posts: 0,
+        lifetimeVotes: 0,
         createdAt: serverTimestamp(),
     };
 
