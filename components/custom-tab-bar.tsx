@@ -1,5 +1,5 @@
 /**
- * CustomTabBar — Rounded tab bar with floating center FAB and active glow
+ * CustomTabBar — Apple-style tab bar with dark mode support
  */
 
 import React from 'react';
@@ -8,6 +8,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius, Typography, Shadows, Animation, Layout } from '@/constants/theme';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTheme } from '@/contexts/theme-context';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -28,12 +30,21 @@ const TAB_LABELS: Record<string, string> = {
 };
 
 export function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+    const insets = useSafeAreaInsets();
+    const { isDark, colors } = useTheme();
+
     return (
-        <View style={styles.wrapper}>
-            <View style={[styles.container, Shadows.xl]}>
+        <View style={[
+            styles.wrapper,
+            {
+                paddingBottom: Math.max(insets.bottom, Spacing.sm),
+                backgroundColor: isDark ? Colors.tabBarDark : Colors.tabBarLight,
+                borderTopColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0, 0, 0, 0.06)',
+            }
+        ]}>
+            <View style={styles.container}>
                 {state.routes.map((route, index) => {
                     const isFocused = state.index === index;
-                    const isUpload = route.name === 'upload';
                     const icons = TAB_ICONS[route.name] || { active: 'help-circle', inactive: 'help-circle-outline' };
                     const label = TAB_LABELS[route.name] || route.name;
 
@@ -48,12 +59,6 @@ export function CustomTabBar({ state, descriptors, navigation }: BottomTabBarPro
                         }
                     };
 
-                    if (isUpload) {
-                        return (
-                            <UploadFAB key={route.key} isFocused={isFocused} onPress={onPress} />
-                        );
-                    }
-
                     return (
                         <TabItem
                             key={route.key}
@@ -61,6 +66,7 @@ export function CustomTabBar({ state, descriptors, navigation }: BottomTabBarPro
                             iconName={isFocused ? icons.active : icons.inactive}
                             isFocused={isFocused}
                             onPress={onPress}
+                            isDark={isDark}
                         />
                     );
                 })}
@@ -69,17 +75,20 @@ export function CustomTabBar({ state, descriptors, navigation }: BottomTabBarPro
     );
 }
 
-function TabItem({ label, iconName, isFocused, onPress }: {
+function TabItem({ label, iconName, isFocused, onPress, isDark }: {
     label: string;
     iconName: keyof typeof Ionicons.glyphMap;
     isFocused: boolean;
     onPress: () => void;
+    isDark: boolean;
 }) {
     const tabScale = useSharedValue(1);
 
     const animStyle = useAnimatedStyle(() => ({
         transform: [{ scale: tabScale.value }],
     }));
+
+    const inactiveColor = isDark ? Colors.textMutedDark : Colors.textMutedLight;
 
     return (
         <AnimatedPressable
@@ -90,34 +99,12 @@ function TabItem({ label, iconName, isFocused, onPress }: {
         >
             <Ionicons
                 name={iconName}
-                size={22}
-                color={isFocused ? Colors.primary : Colors.textMutedDark}
+                size={24}
+                color={isFocused ? Colors.primary : inactiveColor}
             />
-            <Text style={[styles.label, isFocused && styles.labelActive]}>
+            <Text style={[styles.label, { color: isFocused ? Colors.primary : inactiveColor }]}>
                 {label}
             </Text>
-            {isFocused && <View style={styles.activeIndicator} />}
-        </AnimatedPressable>
-    );
-}
-
-function UploadFAB({ isFocused, onPress }: { isFocused: boolean; onPress: () => void }) {
-    const fabScale = useSharedValue(1);
-
-    const animStyle = useAnimatedStyle(() => ({
-        transform: [{ scale: fabScale.value }],
-    }));
-
-    return (
-        <AnimatedPressable
-            style={[styles.fabWrapper, animStyle]}
-            onPress={onPress}
-            onPressIn={() => { fabScale.value = withSpring(0.88, Animation.spring); }}
-            onPressOut={() => { fabScale.value = withSpring(1, Animation.spring); }}
-        >
-            <View style={[styles.fab, Shadows.glow(Colors.primary)]}>
-                <Ionicons name="add" size={28} color={Colors.white} />
-            </View>
         </AnimatedPressable>
     );
 }
@@ -128,56 +115,26 @@ const styles = StyleSheet.create({
         bottom: 0,
         left: 0,
         right: 0,
-        paddingHorizontal: Spacing.sm,
-        paddingBottom: Platform.OS === 'ios' ? Spacing.lg : Spacing.sm,
+        borderTopWidth: StyleSheet.hairlineWidth,
     },
     container: {
         flexDirection: 'row',
-        backgroundColor: Colors.tabBarDark,
-        borderRadius: Radius.xl,
-        height: 64,
         alignItems: 'center',
+        paddingTop: Spacing.sm,
         paddingHorizontal: Spacing.sm,
-        borderWidth: 1,
-        borderColor: Colors.borderDark,
     },
     tab: {
         flex: 1,
         alignItems: 'center',
         justifyContent: 'center',
-        paddingVertical: Spacing.sm,
-        position: 'relative',
+        gap: 4,
+        paddingVertical: 2,
     },
     label: {
-        ...Typography.caption,
-        color: Colors.textMutedDark,
-        marginTop: 2,
         fontSize: 10,
-    },
-    labelActive: {
-        color: Colors.primary,
-        fontWeight: '600',
-    },
-    activeIndicator: {
-        position: 'absolute',
-        bottom: 2,
-        width: 4,
-        height: 4,
-        borderRadius: 2,
-        backgroundColor: Colors.primary,
-    },
-    fabWrapper: {
-        flex: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginTop: -28,
-    },
-    fab: {
-        width: 54,
-        height: 54,
-        borderRadius: 27,
-        backgroundColor: Colors.primary,
-        justifyContent: 'center',
-        alignItems: 'center',
+        fontFamily: 'Inter_700Bold',
+        fontWeight: '700',
+        textTransform: 'uppercase',
+        letterSpacing: 1.5,
     },
 });

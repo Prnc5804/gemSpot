@@ -1,5 +1,5 @@
 /**
- * Welcome Screen — First screen users see, before login/signup
+ * Welcome Screen — Onboarding / Landing Page, dark mode support
  */
 
 import React from 'react';
@@ -8,59 +8,71 @@ import {
     Text,
     StyleSheet,
     Pressable,
+    Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { Colors, Spacing, Radius, Typography, Shadows, Layout } from '@/constants/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTheme } from '@/contexts/theme-context';
 import Animated, {
     FadeInDown,
     FadeInUp,
 } from 'react-native-reanimated';
 
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
 export default function WelcomeScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
+    const { isDark, colors } = useTheme();
+
+    const bgColor = colors.background;
+    const textColor = colors.text;
+    const cardBg = isDark ? colors.cardElevated : Colors.white;
 
     return (
-        <View style={[styles.screen, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-            {/* Background gradient overlay */}
-            <LinearGradient
-                colors={['transparent', Colors.backgroundDark]}
-                style={StyleSheet.absoluteFill}
-            />
-
-            {/* Logo + Tagline */}
-            <Animated.View entering={FadeInUp.delay(200).duration(800)} style={styles.heroSection}>
-                <View style={[styles.logoCircle, Shadows.glow(Colors.primary)]}>
-                    <Text style={styles.logoEmoji}>💎</Text>
+        <View style={[styles.screen, { paddingTop: insets.top, paddingBottom: insets.bottom, backgroundColor: bgColor }]}>
+            {/* Header */}
+            <Animated.View entering={FadeInUp.delay(100).duration(600)} style={styles.header}>
+                <View style={styles.headerIcon}>
+                    <Text style={styles.headerIconText}>💎</Text>
                 </View>
-                <Text style={styles.appName}>
-                    Gem<Text style={styles.appNameAccent}>Spots</Text>
-                </Text>
-                <Text style={styles.tagline}>Discover hidden YouTube creators</Text>
+                <Text style={[styles.headerTitle, { color: textColor }]}>GEMSPOTS</Text>
             </Animated.View>
 
-            {/* Features */}
-            <Animated.View entering={FadeInDown.delay(500).duration(800)} style={styles.features}>
-                <View style={styles.featureRow}>
-                    <View style={styles.featureDot}>
-                        <Ionicons name="search" size={16} color={Colors.primary} />
-                    </View>
-                    <Text style={styles.featureText}>Find creators with under 5K subs</Text>
+            {/* Hero Image Area */}
+            <Animated.View entering={FadeInUp.delay(200).duration(800)} style={styles.heroContainer}>
+                <View style={[styles.heroImage, { backgroundColor: isDark ? Colors.primary + '30' : Colors.primaryDark }]}>
+                    <View style={styles.heroGradient} />
                 </View>
-                <View style={styles.featureRow}>
-                    <View style={styles.featureDot}>
-                        <Ionicons name="thumbs-up" size={16} color={Colors.accent} />
+            </Animated.View>
+
+            {/* Heading */}
+            <Animated.View entering={FadeInDown.delay(400).duration(800)} style={styles.headingSection}>
+                <Text style={[styles.heading, { color: textColor }]}>
+                    Discover hidden{' '}
+                    <Text style={styles.headingAccent}>YouTube</Text>
+                    {' '}creators
+                </Text>
+                <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+                    The community uncovering the best emerging creators with under 5,000 subscribers.
+                </Text>
+            </Animated.View>
+
+            {/* Feature Grid */}
+            <Animated.View entering={FadeInDown.delay(600).duration(800)} style={styles.featureGrid}>
+                <View style={[styles.featureCard, { backgroundColor: cardBg }]}>
+                    <View style={styles.featureIconBg}>
+                        <Ionicons name="people" size={22} color={Colors.primary} />
                     </View>
-                    <Text style={styles.featureText}>Upvote your favorite hidden gems</Text>
+                    <Text style={[styles.featureText, { color: textColor }]}>Creators Under 5k Subs</Text>
                 </View>
-                <View style={styles.featureRow}>
-                    <View style={styles.featureDot}>
-                        <Ionicons name="trending-up" size={16} color={Colors.info} />
+                <View style={[styles.featureCard, { backgroundColor: cardBg }]}>
+                    <View style={styles.featureIconBg}>
+                        <Ionicons name="thumbs-up" size={22} color={Colors.primary} />
                     </View>
-                    <Text style={styles.featureText}>Help small creators grow & trend</Text>
+                    <Text style={[styles.featureText, { color: textColor }]}>Community Voted Gems</Text>
                 </View>
             </Animated.View>
 
@@ -70,122 +82,92 @@ export default function WelcomeScreen() {
                     style={styles.primaryBtn}
                     onPress={() => router.push('/auth/signup' as any)}
                 >
-                    <LinearGradient
-                        colors={Colors.gradientPrimary}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 0 }}
-                        style={styles.primaryBtnGradient}
-                    >
-                        <Text style={styles.primaryBtnText}>Get Started</Text>
-                        <Ionicons name="arrow-forward" size={18} color={Colors.white} />
-                    </LinearGradient>
+                    <Text style={styles.primaryBtnText}>Get Started</Text>
                 </Pressable>
 
                 <Pressable
-                    style={styles.secondaryBtn}
+                    style={[styles.secondaryBtn, {
+                        backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255, 255, 255, 0.5)',
+                        borderColor: isDark ? colors.border : Colors.borderLight,
+                    }]}
                     onPress={() => router.push('/auth/login' as any)}
                 >
-                    <Text style={styles.secondaryBtnText}>I already have an account</Text>
+                    <Text style={[styles.secondaryBtnText, { color: colors.textSecondary }]}>I already have an account</Text>
                 </Pressable>
             </Animated.View>
+
+            {/* Footer decoration */}
+            <View style={styles.footerDot} />
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    screen: {
-        flex: 1,
-        backgroundColor: Colors.backgroundDark,
-        justifyContent: 'center',
-        paddingHorizontal: Spacing.xl,
+    screen: { flex: 1 },
+    header: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+        paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, gap: Spacing.xs,
     },
-
-    // ── Hero ──
-    heroSection: {
-        alignItems: 'center',
-        marginBottom: Spacing.xl + Spacing.lg,
+    headerIcon: { width: 32, height: 32, justifyContent: 'center', alignItems: 'center' },
+    headerIconText: { fontSize: 20 },
+    headerTitle: {
+        fontSize: 13, fontFamily: 'Inter_700Bold', fontWeight: '700',
+        letterSpacing: 3, textTransform: 'uppercase',
     },
-    logoCircle: {
-        width: 100,
-        height: 100,
-        borderRadius: 50,
-        backgroundColor: Colors.primary + '20',
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginBottom: Spacing.md,
+    heroContainer: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm },
+    heroImage: {
+        width: '100%', aspectRatio: 4 / 3, borderRadius: Radius.xl,
+        overflow: 'hidden', ...Shadows.sm,
     },
-    logoEmoji: {
-        fontSize: 44,
+    heroGradient: { ...StyleSheet.absoluteFillObject, backgroundColor: Colors.primary + '40' },
+    headingSection: { paddingHorizontal: Spacing.xl, paddingTop: Spacing['2xl'], alignItems: 'center' },
+    heading: {
+        fontSize: 28, fontFamily: 'Inter_700Bold', fontWeight: '700',
+        textAlign: 'center', letterSpacing: -0.5, lineHeight: 36,
     },
-    appName: {
-        fontSize: 36,
-        fontFamily: 'Inter_700Bold',
-        fontWeight: '700',
-        color: Colors.textPrimaryDark,
-        letterSpacing: -1.5,
+    headingAccent: { color: Colors.primary },
+    subtitle: {
+        fontSize: 15, fontFamily: 'Inter_400Regular',
+        textAlign: 'center', marginTop: Spacing.md, lineHeight: 22, maxWidth: 300, opacity: 0.8,
     },
-    appNameAccent: {
-        color: Colors.primary,
+    featureGrid: {
+        flexDirection: 'row', gap: Spacing.md,
+        paddingHorizontal: Spacing.lg, paddingVertical: Spacing.xl,
     },
-    tagline: {
-        ...Typography.body,
-        color: Colors.textSecondaryDark,
-        marginTop: Spacing.xs,
-        fontSize: 16,
+    featureCard: {
+        flex: 1, aspectRatio: 1, borderRadius: Radius.xl,
+        justifyContent: 'center', alignItems: 'center',
+        gap: Spacing.sm, padding: Spacing.lg, ...Shadows.apple,
     },
-
-    // ── Features ──
-    features: {
-        gap: Spacing.md,
-        marginBottom: Spacing.xl + Spacing.lg,
-    },
-    featureRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: Spacing.sm + 4,
-    },
-    featureDot: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
-        backgroundColor: Colors.cardDark,
-        justifyContent: 'center',
-        alignItems: 'center',
+    featureIconBg: {
+        width: 48, height: 48, borderRadius: 24,
+        backgroundColor: Colors.primary + '15', justifyContent: 'center', alignItems: 'center',
     },
     featureText: {
-        ...Typography.body,
-        color: Colors.textPrimaryDark,
-        fontSize: 15,
+        fontSize: 12, fontFamily: 'Inter_600SemiBold', fontWeight: '600',
+        textAlign: 'center', letterSpacing: -0.2,
     },
-
-    // ── CTA ──
     ctaSection: {
-        gap: Spacing.md,
+        paddingHorizontal: Spacing.xl, gap: Spacing.md,
+        marginTop: 'auto', paddingBottom: Spacing.xl,
     },
     primaryBtn: {
-        borderRadius: Radius.md,
-        overflow: 'hidden',
-        ...Shadows.glow(Colors.primary),
-    },
-    primaryBtnGradient: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: Spacing.sm,
-        height: Layout.buttonHeight + 8,
+        backgroundColor: Colors.primary, borderRadius: Radius.md, height: 56,
+        justifyContent: 'center', alignItems: 'center', ...Shadows.glow(Colors.primary),
     },
     primaryBtnText: {
-        ...Typography.button,
-        color: Colors.white,
-        fontSize: 17,
+        fontSize: 16, fontFamily: 'Inter_600SemiBold', fontWeight: '600',
+        color: Colors.white, letterSpacing: -0.2,
     },
     secondaryBtn: {
-        alignItems: 'center',
-        paddingVertical: Spacing.md,
+        borderRadius: Radius.md, height: 56,
+        justifyContent: 'center', alignItems: 'center', borderWidth: 1,
     },
     secondaryBtnText: {
-        ...Typography.body,
-        color: Colors.textSecondaryDark,
-        fontSize: 15,
+        fontSize: 16, fontFamily: 'Inter_500Medium', fontWeight: '500', letterSpacing: -0.2,
+    },
+    footerDot: {
+        width: 48, height: 4, borderRadius: 2,
+        backgroundColor: Colors.primary + '30', alignSelf: 'center', marginBottom: Spacing.xl,
     },
 });

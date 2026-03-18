@@ -25,14 +25,11 @@ export const MOCK_USER: User = {
 
 // ─── Badges ────────────────────────────────────────────────────────────────
 export const ALL_BADGES: Badge[] = [
-    { id: 'b1', name: 'Gem Hunter', icon: '💎', description: 'Discovered 10 hidden gems', earnedAt: '2025-12-01', isLocked: false },
-    { id: 'b2', name: 'Rising Scout', icon: '🔭', description: 'Upvoted 50 videos', earnedAt: '2025-12-15', isLocked: false },
-    { id: 'b3', name: 'Streak Master', icon: '🔥', description: '7-day voting streak', earnedAt: '2026-01-05', isLocked: false },
-    { id: 'b4', name: 'Trendsetter', icon: '📈', description: 'Your submission went trending', isLocked: true },
-    { id: 'b5', name: 'Early Bird', icon: '🐣', description: 'Joined in the first 1000 users', earnedAt: '2025-11-15', isLocked: false },
-    { id: 'b6', name: 'Top Voter', icon: '⭐', description: 'Top 10 voter this week', isLocked: true },
-    { id: 'b7', name: 'Content King', icon: '👑', description: 'Reached #1 on leaderboard', isLocked: true },
-    { id: 'b8', name: 'Brand Partner', icon: '🤝', description: 'Completed first brand deal', isLocked: true },
+    { id: 'b1', name: 'Gem Hunter', icon: '💎', description: 'Discovered 10 hidden gems early.', earnedAt: '2025-12-01', isLocked: false },
+    { id: 'b2', name: 'Rising Scout', icon: '🔭', description: 'Upvoted 50 videos that gained traction.', earnedAt: '2025-12-15', isLocked: false },
+    { id: 'b3', name: 'Streak Master', icon: '🔥', description: 'Voted for videos 7 days in a row.', earnedAt: '2026-01-05', isLocked: false },
+    { id: 'b4', name: 'Trendsetter', icon: '📈', description: 'One of your submitted videos went trending.', isLocked: true },
+    { id: 'b7', name: 'Content King', icon: '👑', description: 'Reached #1 on the leaderboard.', isLocked: true },
 ];
 
 // ─── Creators ──────────────────────────────────────────────────────────────

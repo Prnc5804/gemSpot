@@ -6,8 +6,12 @@ import { db } from './firebase';
 import {
     doc,
     getDoc,
+    getDocs,
     updateDoc,
     increment,
+    collection,
+    query,
+    orderBy,
 } from 'firebase/firestore';
 import type { User } from '@/constants/types';
 
@@ -107,4 +111,22 @@ export async function incrementVoteCount(userId: string): Promise<{ allowed: boo
     });
 
     return { allowed: true, remaining: user.maxVotesPerDay - user.votesToday - 1 };
+}
+
+/**
+ * Get accurate rank of a user by checking their points compared to others
+ */
+export async function getUserRank(userId: string): Promise<number> {
+    const usersRef = collection(db, 'users');
+    // For a real app with thousands of users, doing clientside count or a full query is expensive,
+    // but for our purposes we'll fetch ordered by points and find the index.
+    const q = query(usersRef, orderBy('points', 'desc'));
+    const snap = await getDocs(q);
+    
+    let rank = 1;
+    for (const doc of snap.docs) {
+        if (doc.id === userId) return rank;
+        rank++;
+    }
+    return -1; // Not found
 }

@@ -21,6 +21,7 @@ import { CATEGORIES } from '@/constants/types';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, withSequence } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/contexts/auth-context';
+import { useTheme } from '@/contexts/theme-context';
 import { fetchVideoInfo, isEligible, type YouTubeVideoInfo } from '@/services/youtube-service';
 import { submitVideo } from '@/services/video-service';
 
@@ -31,6 +32,7 @@ type Mode = 'creator' | 'gem';
 export default function UploadScreen() {
     const insets = useSafeAreaInsets();
     const { user } = useAuth();
+    const { isDark, colors } = useTheme();
     const [mode, setMode] = useState<Mode>('gem');
     const [videoLink, setVideoLink] = useState('');
     const [channelLink, setChannelLink] = useState('');
@@ -171,28 +173,31 @@ export default function UploadScreen() {
         }
     };
 
+    const cardBg = isDark ? colors.cardElevated : Colors.white;
+    const borderColor = isDark ? colors.border : 'rgba(0,0,0,0.04)';
+
     return (
-        <View style={[styles.screen, { paddingTop: insets.top }]}>
+        <View style={[styles.screen, { paddingTop: insets.top, backgroundColor: colors.background }]}>
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
                 {/* Header */}
-                <Text style={styles.screenTitle}>Upload</Text>
-                <Text style={styles.subtitle}>Share a video with the GemSpots community</Text>
+                <Text style={[styles.screenTitle, { color: colors.text }]}>Upload</Text>
+                <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Share a video with the GemSpots community</Text>
 
                 {/* Mode Toggle */}
-                <View style={styles.modeToggle}>
+                <View style={[styles.modeToggle, { backgroundColor: cardBg, borderColor }]}>
                     <Pressable
                         style={[styles.modeBtn, mode === 'creator' && styles.modeBtnActive]}
                         onPress={() => setMode('creator')}
                     >
-                        <Ionicons name="videocam" size={18} color={mode === 'creator' ? Colors.white : Colors.textSecondaryDark} />
-                        <Text style={[styles.modeText, mode === 'creator' && styles.modeTextActive]}>My Video</Text>
+                        <Ionicons name="videocam" size={18} color={mode === 'creator' ? Colors.white : colors.textSecondary} />
+                        <Text style={[styles.modeText, { color: colors.textSecondary }, mode === 'creator' && styles.modeTextActive]}>My Video</Text>
                     </Pressable>
                     <Pressable
                         style={[styles.modeBtn, mode === 'gem' && styles.modeBtnActive]}
                         onPress={() => setMode('gem')}
                     >
-                        <Ionicons name="diamond" size={18} color={mode === 'gem' ? Colors.white : Colors.textSecondaryDark} />
-                        <Text style={[styles.modeText, mode === 'gem' && styles.modeTextActive]}>Hidden Gem</Text>
+                        <Ionicons name="diamond" size={18} color={mode === 'gem' ? Colors.white : colors.textSecondary} />
+                        <Text style={[styles.modeText, { color: colors.textSecondary }, mode === 'gem' && styles.modeTextActive]}>Hidden Gem</Text>
                     </Pressable>
                 </View>
 
@@ -200,13 +205,13 @@ export default function UploadScreen() {
                 <View style={styles.form}>
                     {/* Video Link */}
                     <View style={styles.inputGroup}>
-                        <Text style={styles.label}>
+                        <Text style={[styles.label, { color: colors.text }]}>
                             <Ionicons name="link" size={14} color={Colors.primary} /> Video Link
                         </Text>
                         <TextInput
-                            style={styles.input}
+                            style={[styles.input, { backgroundColor: cardBg, borderColor, color: colors.text }]}
                             placeholder="https://youtube.com/watch?v=..."
-                            placeholderTextColor={Colors.textMutedDark}
+                            placeholderTextColor={colors.textMuted}
                             value={videoLink}
                             onChangeText={(text) => {
                                 setVideoLink(text);
@@ -225,7 +230,7 @@ export default function UploadScreen() {
                             disabled={isVerifying || !videoLink.trim()}
                         >
                             <LinearGradient
-                                colors={!videoLink.trim() ? [Colors.textMutedDark, Colors.textMutedDark] : ['#3B82F6', '#2563EB'] as any}
+                                colors={!videoLink.trim() ? [colors.border, colors.border] : ['#3B82F6', '#2563EB'] as any}
                                 start={{ x: 0, y: 0 }}
                                 end={{ x: 1, y: 0 }}
                                 style={styles.verifyBtnGradient}
@@ -244,15 +249,15 @@ export default function UploadScreen() {
 
                     {/* Video Preview (shown after verification) */}
                     {videoInfo && (
-                        <View style={styles.previewCard}>
+                        <View style={[styles.previewCard, { backgroundColor: cardBg, borderColor }]}>
                             <Image source={{ uri: videoInfo.thumbnailUrl }} style={styles.previewThumb} />
                             <View style={styles.previewInfo}>
-                                <Text style={styles.previewTitle} numberOfLines={2}>{videoInfo.title}</Text>
+                                <Text style={[styles.previewTitle, { color: colors.text }]} numberOfLines={2}>{videoInfo.title}</Text>
                                 <View style={styles.previewChannel}>
                                     <Image source={{ uri: videoInfo.channelAvatar }} style={styles.previewAvatar} />
                                     <View>
-                                        <Text style={styles.previewChannelName}>{videoInfo.channelName}</Text>
-                                        <Text style={styles.previewSubs}>
+                                        <Text style={[styles.previewChannelName, { color: colors.text }]}>{videoInfo.channelName}</Text>
+                                        <Text style={[styles.previewSubs, { color: colors.textSecondary }]}>
                                             {videoInfo.subscriberCount.toLocaleString()} subscribers
                                         </Text>
                                     </View>
@@ -271,22 +276,22 @@ export default function UploadScreen() {
 
                     {/* Validation Indicators */}
                     {(subCheck !== 'idle' || dupCheck !== 'idle') && (
-                        <View style={styles.validationBox}>
-                            <ValidationRow label="Subscriber Count (< 5K)" status={subCheck} />
-                            {dupCheck !== 'idle' && <ValidationRow label="Duplicate Check" status={dupCheck} />}
+                        <View style={[styles.validationBox, { backgroundColor: cardBg, borderColor }]}>
+                            <ValidationRow label="Subscriber Count (< 5K)" status={subCheck} colors={colors} />
+                            {dupCheck !== 'idle' && <ValidationRow label="Duplicate Check" status={dupCheck} colors={colors} />}
                         </View>
                     )}
 
                     {/* Channel Link (Creator only) */}
                     {mode === 'creator' && (
                         <View style={styles.inputGroup}>
-                            <Text style={styles.label}>
+                            <Text style={[styles.label, { color: colors.text }]}>
                                 <Ionicons name="person-circle" size={14} color={Colors.primary} /> Channel Link
                             </Text>
                             <TextInput
-                                style={styles.input}
+                                style={[styles.input, { backgroundColor: cardBg, borderColor, color: colors.text }]}
                                 placeholder="https://youtube.com/@yourchannel"
-                                placeholderTextColor={Colors.textMutedDark}
+                                placeholderTextColor={colors.textMuted}
                                 value={channelLink}
                                 onChangeText={setChannelLink}
                                 autoCapitalize="none"
@@ -296,32 +301,32 @@ export default function UploadScreen() {
 
                     {/* Category */}
                     <View style={styles.inputGroup}>
-                        <Text style={styles.label}>
+                        <Text style={[styles.label, { color: colors.text }]}>
                             <Ionicons name="grid" size={14} color={Colors.primary} /> Category
                         </Text>
                         <Pressable
-                            style={styles.selectBtn}
+                            style={[styles.selectBtn, { backgroundColor: cardBg, borderColor }]}
                             onPress={() => setShowCategoryPicker(!showCategoryPicker)}
                         >
-                            <Text style={category ? styles.selectText : styles.selectPlaceholder}>
+                            <Text style={[category ? styles.selectText : styles.selectPlaceholder, { color: category ? colors.text : colors.textMuted }]}>
                                 {category || 'Select a category'}
                             </Text>
-                            <Ionicons name="chevron-down" size={18} color={Colors.textMutedDark} />
+                            <Ionicons name="chevron-down" size={18} color={colors.textMuted} />
                         </Pressable>
 
                         {showCategoryPicker && (
-                            <View style={styles.categoryGrid}>
+                            <View style={[styles.categoryGrid, { backgroundColor: cardBg, borderColor }]}>
                                 {CATEGORIES.map((cat) => (
                                     <Pressable
                                         key={cat.name}
-                                        style={[styles.categoryOption, category === cat.name && styles.categoryOptionActive]}
+                                        style={[styles.categoryOption, { backgroundColor: isDark ? colors.card : Colors.white, borderColor }, category === cat.name && styles.categoryOptionActive]}
                                         onPress={() => {
                                             setCategory(cat.name);
                                             setShowCategoryPicker(false);
                                         }}
                                     >
                                         <Text style={styles.categoryEmoji}>{cat.emoji}</Text>
-                                        <Text style={[styles.categoryName, category === cat.name && styles.categoryNameActive]}>
+                                        <Text style={[styles.categoryName, { color: colors.textSecondary }, category === cat.name && styles.categoryNameActive]}>
                                             {cat.name}
                                         </Text>
                                     </Pressable>
@@ -332,16 +337,16 @@ export default function UploadScreen() {
 
                     {/* Description / Reason */}
                     <View style={styles.inputGroup}>
-                        <Text style={styles.label}>
+                        <Text style={[styles.label, { color: colors.text }]}>
                             <Ionicons name="document-text" size={14} color={Colors.primary} />{' '}
                             {mode === 'creator' ? 'Description' : 'Why is this a hidden gem?'}
                         </Text>
                         <TextInput
-                            style={[styles.input, styles.textArea]}
+                            style={[styles.input, styles.textArea, { backgroundColor: cardBg, borderColor, color: colors.text }]}
                             placeholder={mode === 'creator'
                                 ? 'Tell us about your video...'
                                 : 'What makes this creator special?'}
-                            placeholderTextColor={Colors.textMutedDark}
+                            placeholderTextColor={colors.textMuted}
                             value={mode === 'creator' ? description : reason}
                             onChangeText={mode === 'creator' ? setDescription : setReason}
                             multiline
@@ -363,7 +368,7 @@ export default function UploadScreen() {
                     >
                         <LinearGradient
                             colors={(!videoInfo || subCheck !== 'pass')
-                                ? [Colors.textMutedDark, Colors.textMutedDark]
+                                ? [colors.border, colors.border]
                                 : Colors.gradientPrimary as any}
                             start={{ x: 0, y: 0 }}
                             end={{ x: 1, y: 0 }}
@@ -389,13 +394,13 @@ export default function UploadScreen() {
     );
 }
 
-function ValidationRow({ label, status }: { label: string; status: string }) {
+function ValidationRow({ label, status, colors }: { label: string; status: string, colors: any }) {
     const iconName = status === 'checking' ? 'time-outline' :
         status === 'pass' ? 'checkmark-circle' :
             status === 'fail' ? 'close-circle' : 'ellipse-outline';
     const iconColor = status === 'checking' ? Colors.accent :
         status === 'pass' ? Colors.success :
-            status === 'fail' ? Colors.error : Colors.textMutedDark;
+            status === 'fail' ? Colors.error : colors.textMuted;
 
     return (
         <View style={valStyles.row}>
@@ -404,7 +409,7 @@ function ValidationRow({ label, status }: { label: string; status: string }) {
             ) : (
                 <Ionicons name={iconName as any} size={18} color={iconColor} />
             )}
-            <Text style={valStyles.label}>{label}</Text>
+            <Text style={[valStyles.label, { color: colors.textSecondary }]}>{label}</Text>
             {status === 'checking' && <Text style={valStyles.checking}>Verifying...</Text>}
             {status === 'pass' && <Text style={valStyles.pass}>Passed ✓</Text>}
             {status === 'fail' && <Text style={valStyles.fail}>Failed ✗</Text>}
@@ -421,31 +426,33 @@ const valStyles = StyleSheet.create({
 });
 
 const styles = StyleSheet.create({
-    screen: { flex: 1, backgroundColor: Colors.backgroundDark },
+    screen: { flex: 1, backgroundColor: Colors.backgroundLight },
     scrollContent: { paddingHorizontal: Layout.screenPadding },
-    screenTitle: { ...Typography.screenTitle, color: Colors.textPrimaryDark, marginTop: Spacing.sm },
-    subtitle: { ...Typography.body, color: Colors.textSecondaryDark, marginTop: Spacing.xs, marginBottom: Spacing.lg },
+    screenTitle: { ...Typography.screenTitle, color: Colors.textPrimaryLight, marginTop: Spacing.sm },
+    subtitle: { ...Typography.body, color: Colors.textSecondaryLight, marginTop: Spacing.xs, marginBottom: Spacing.lg },
 
     modeToggle: {
-        flexDirection: 'row', backgroundColor: Colors.cardDark,
-        borderRadius: Radius.md, padding: Spacing.xs, gap: Spacing.xs, marginBottom: Spacing.lg,
+        flexDirection: 'row', backgroundColor: Colors.white,
+        borderRadius: Radius.lg, padding: Spacing.xs, gap: Spacing.xs, marginBottom: Spacing.lg,
+        borderWidth: 1, borderColor: 'rgba(0,0,0,0.04)',
+        ...Shadows.sm,
     },
     modeBtn: {
         flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
         gap: Spacing.sm, paddingVertical: Spacing.sm + 2, borderRadius: Radius.sm,
     },
     modeBtnActive: { backgroundColor: Colors.primary },
-    modeText: { ...Typography.body, color: Colors.textSecondaryDark, fontWeight: '500', fontSize: 13 },
+    modeText: { ...Typography.body, color: Colors.textSecondaryLight, fontWeight: '500', fontSize: 14 },
     modeTextActive: { color: Colors.white, fontWeight: '600' },
 
-    form: { gap: Spacing.md },
+    form: { gap: Spacing.lg },
     inputGroup: { gap: Spacing.sm },
-    label: { ...Typography.body, color: Colors.textPrimaryDark, fontWeight: '500' },
+    label: { ...Typography.body, color: Colors.textPrimaryLight, fontWeight: '600' },
     input: {
-        backgroundColor: Colors.cardDark, borderRadius: Radius.md,
+        backgroundColor: Colors.white, borderRadius: Radius.md,
         paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2,
-        ...Typography.body, color: Colors.textPrimaryDark,
-        borderWidth: 1, borderColor: Colors.borderDark, height: Layout.inputHeight,
+        ...Typography.body, color: Colors.textPrimaryLight,
+        borderWidth: 1, borderColor: 'rgba(0,0,0,0.08)', height: Layout.inputHeight,
     },
     textArea: { height: 100, paddingTop: Spacing.sm + 2 },
 
@@ -464,16 +471,17 @@ const styles = StyleSheet.create({
 
     // Video preview card
     previewCard: {
-        backgroundColor: Colors.cardDark, borderRadius: Radius.md,
-        overflow: 'hidden', borderWidth: 1, borderColor: Colors.primary + '40',
+        backgroundColor: Colors.white, borderRadius: Radius.lg,
+        overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(0,0,0,0.08)',
+        ...Shadows.sm,
     },
-    previewThumb: { width: '100%', height: 160 },
-    previewInfo: { padding: Spacing.sm + 4 },
-    previewTitle: { ...Typography.cardTitle, color: Colors.textPrimaryDark, marginBottom: Spacing.sm },
+    previewThumb: { width: '100%', height: 160, backgroundColor: Colors.cardLightElevated },
+    previewInfo: { padding: Spacing.md },
+    previewTitle: { ...Typography.cardTitle, color: Colors.textPrimaryLight, marginBottom: Spacing.sm },
     previewChannel: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-    previewAvatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: Colors.surfaceDark },
-    previewChannelName: { ...Typography.body, color: Colors.textPrimaryDark, fontWeight: '500', fontSize: 13 },
-    previewSubs: { ...Typography.caption, color: Colors.textSecondaryDark },
+    previewAvatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: Colors.cardLightElevated },
+    previewChannelName: { ...Typography.body, color: Colors.textPrimaryLight, fontWeight: '600', fontSize: 14 },
+    previewSubs: { ...Typography.caption, color: Colors.textSecondaryLight },
 
     // Error
     errorBox: {
@@ -485,31 +493,35 @@ const styles = StyleSheet.create({
 
     // Validation
     validationBox: {
-        backgroundColor: Colors.cardDark, borderRadius: Radius.md,
-        padding: Spacing.md, borderWidth: 1, borderColor: Colors.borderDark,
+        backgroundColor: Colors.white, borderRadius: Radius.md,
+        padding: Spacing.md, borderWidth: 1, borderColor: 'rgba(0,0,0,0.08)',
+        ...Shadows.sm,
     },
 
     // Select & Category
     selectBtn: {
-        backgroundColor: Colors.cardDark, borderRadius: Radius.md,
+        backgroundColor: Colors.white, borderRadius: Radius.md,
         paddingHorizontal: Spacing.md, height: Layout.inputHeight,
         flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-        borderWidth: 1, borderColor: Colors.borderDark,
+        borderWidth: 1, borderColor: 'rgba(0,0,0,0.08)',
     },
-    selectText: { ...Typography.body, color: Colors.textPrimaryDark },
-    selectPlaceholder: { ...Typography.body, color: Colors.textMutedDark },
+    selectText: { ...Typography.body, color: Colors.textPrimaryLight },
+    selectPlaceholder: { ...Typography.body, color: Colors.textMutedLight },
     categoryGrid: {
         flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm,
-        backgroundColor: Colors.cardDark, borderRadius: Radius.md, padding: Spacing.sm,
+        backgroundColor: Colors.white, borderRadius: Radius.md, padding: Spacing.sm,
+        borderWidth: 1, borderColor: 'rgba(0,0,0,0.08)',
+        ...Shadows.sm,
     },
     categoryOption: {
-        flexDirection: 'row', alignItems: 'center', gap: 4,
-        paddingHorizontal: Spacing.sm + 4, paddingVertical: Spacing.sm,
-        borderRadius: Radius.full, borderWidth: 1, borderColor: Colors.borderDark,
+        flexDirection: 'row', alignItems: 'center', gap: 6,
+        paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2,
+        borderRadius: Radius.full, borderWidth: 1, borderColor: 'rgba(0,0,0,0.08)',
+        backgroundColor: Colors.white,
     },
     categoryOptionActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-    categoryEmoji: { fontSize: 14 },
-    categoryName: { ...Typography.caption, color: Colors.textSecondaryDark },
+    categoryEmoji: { fontSize: 16 },
+    categoryName: { ...Typography.caption, color: Colors.textSecondaryLight, fontSize: 13 },
     categoryNameActive: { color: Colors.white, fontWeight: '600' },
 
     // Submit

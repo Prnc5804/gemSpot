@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius, Typography, Shadows, Animation } from '@/constants/theme';
 import { ShopItem } from '@/constants/types';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
+import { useTheme } from '@/contexts/theme-context';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -17,15 +18,19 @@ interface ProductCardProps {
 }
 
 export function ProductCard({ item, onPress }: ProductCardProps) {
+    const { isDark, colors } = useTheme();
     const cardScale = useSharedValue(1);
 
     const animStyle = useAnimatedStyle(() => ({
         transform: [{ scale: cardScale.value }],
     }));
 
+    const cardBg = isDark ? colors.cardElevated : Colors.white;
+    const borderColor = isDark ? colors.border : 'rgba(0,0,0,0.04)';
+
     return (
         <AnimatedPressable
-            style={[styles.card, Shadows.lg, animStyle]}
+            style={[styles.card, Shadows.lg, animStyle, { backgroundColor: cardBg, borderColor }]}
             onPress={onPress}
             onPressIn={() => { cardScale.value = withSpring(Animation.pressScale, Animation.spring); }}
             onPressOut={() => { cardScale.value = withSpring(1, Animation.spring); }}
@@ -40,8 +45,8 @@ export function ProductCard({ item, onPress }: ProductCardProps) {
             <Image source={{ uri: item.image }} style={styles.image} />
 
             <View style={styles.info}>
-                <Text style={styles.name} numberOfLines={2}>{item.name}</Text>
-                <Text style={styles.description} numberOfLines={1}>{item.description}</Text>
+                <Text style={[styles.name, { color: colors.text }]} numberOfLines={2}>{item.name}</Text>
+                <Text style={[styles.description, { color: colors.textSecondary }]} numberOfLines={1}>{item.description}</Text>
 
                 <View style={styles.ratingRow}>
                     {[1, 2, 3, 4, 5].map((star) => (
@@ -52,13 +57,13 @@ export function ProductCard({ item, onPress }: ProductCardProps) {
                             color={Colors.accent}
                         />
                     ))}
-                    <Text style={styles.reviewCount}>({item.reviewCount.toLocaleString()})</Text>
+                    <Text style={[styles.reviewCount, { color: colors.textMuted }]}>({item.reviewCount.toLocaleString()})</Text>
                 </View>
 
                 <View style={styles.priceRow}>
                     <Text style={styles.price}>{item.price}</Text>
                     {item.originalPrice && (
-                        <Text style={styles.originalPrice}>{item.originalPrice}</Text>
+                        <Text style={[styles.originalPrice, { color: colors.textMuted }]}>{item.originalPrice}</Text>
                     )}
                 </View>
 
@@ -73,11 +78,13 @@ export function ProductCard({ item, onPress }: ProductCardProps) {
 
 const styles = StyleSheet.create({
     card: {
-        backgroundColor: Colors.cardDark,
+        backgroundColor: Colors.white,
         borderRadius: Radius.lg,
         overflow: 'hidden',
         width: 170,
         marginRight: Spacing.sm,
+        borderWidth: 1,
+        borderColor: 'rgba(0,0,0,0.04)',
     },
     bestSellerBadge: {
         position: 'absolute',
@@ -100,19 +107,21 @@ const styles = StyleSheet.create({
     image: {
         width: '100%',
         height: 130,
-        backgroundColor: Colors.surfaceDark,
+        backgroundColor: Colors.cardLightElevated,
     },
     info: {
         padding: Spacing.sm,
     },
     name: {
-        ...Typography.cardTitle,
-        color: Colors.textPrimaryDark,
         fontSize: 14,
+        fontFamily: 'Inter_600SemiBold',
+        fontWeight: '600',
+        color: Colors.textPrimaryLight,
     },
     description: {
-        ...Typography.caption,
-        color: Colors.textMutedDark,
+        fontSize: 12,
+        fontFamily: 'Inter_400Regular',
+        color: Colors.textSecondaryLight,
         marginTop: 2,
     },
     ratingRow: {
@@ -122,9 +131,10 @@ const styles = StyleSheet.create({
         marginTop: Spacing.xs,
     },
     reviewCount: {
-        ...Typography.caption,
-        color: Colors.textMutedDark,
         fontSize: 10,
+        fontFamily: 'Inter_500Medium',
+        fontWeight: '500',
+        color: Colors.textMutedLight,
         marginLeft: 2,
     },
     priceRow: {
@@ -134,13 +144,16 @@ const styles = StyleSheet.create({
         marginTop: Spacing.xs,
     },
     price: {
-        ...Typography.cardTitle,
-        color: Colors.accent,
         fontSize: 15,
+        fontFamily: 'Inter_700Bold',
+        fontWeight: '700',
+        color: Colors.accent,
     },
     originalPrice: {
-        ...Typography.caption,
-        color: Colors.textMutedDark,
+        fontSize: 11,
+        fontFamily: 'Inter_500Medium',
+        fontWeight: '500',
+        color: Colors.textMutedLight,
         textDecorationLine: 'line-through',
     },
     buyBtn: {
@@ -154,8 +167,9 @@ const styles = StyleSheet.create({
         marginTop: Spacing.sm,
     },
     buyText: {
-        ...Typography.button,
-        color: Colors.white,
         fontSize: 12,
+        fontFamily: 'Inter_600SemiBold',
+        fontWeight: '600',
+        color: Colors.white,
     },
 });

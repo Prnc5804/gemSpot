@@ -1,8 +1,9 @@
 /**
  * Root Layout — Auth-gated: shows welcome screen unless logged in
+ * Wrapped with AppThemeProvider for dark/light mode
  */
 
-import { DarkTheme, ThemeProvider } from '@react-navigation/native';
+import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
@@ -13,6 +14,7 @@ import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import 'react-native-reanimated';
 
 import { AuthProvider, useAuth } from '@/contexts/auth-context';
+import { AppThemeProvider, useTheme } from '@/contexts/theme-context';
 import { Colors } from '@/constants/theme';
 
 SplashScreen.preventAutoHideAsync();
@@ -51,6 +53,37 @@ function AuthGate() {
   return null;
 }
 
+function InnerLayout() {
+  const { isDark } = useTheme();
+
+  return (
+    <ThemeProvider value={isDark ? DarkTheme : DefaultTheme}>
+      <AuthGate />
+      <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
+        <Stack.Screen name="welcome" options={{ animation: 'fade' }} />
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen
+          name="video/[id]"
+          options={{ animation: 'slide_from_bottom', presentation: 'card' }}
+        />
+        <Stack.Screen name="creator/[id]" />
+        <Stack.Screen name="creator-dashboard" />
+        <Stack.Screen name="brand-deals" />
+        <Stack.Screen name="shop" />
+        <Stack.Screen
+          name="auth/login"
+          options={{ animation: 'fade', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="auth/signup"
+          options={{ animation: 'fade', presentation: 'modal' }}
+        />
+      </Stack>
+      <StatusBar style={isDark ? 'light' : 'dark'} />
+    </ThemeProvider>
+  );
+}
+
 export default function RootLayout() {
   const [fontsLoaded, setFontsLoaded] = useState(false);
 
@@ -83,30 +116,9 @@ export default function RootLayout() {
 
   return (
     <AuthProvider>
-      <ThemeProvider value={DarkTheme}>
-        <AuthGate />
-        <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
-          <Stack.Screen name="welcome" options={{ animation: 'fade' }} />
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen
-            name="video/[id]"
-            options={{ animation: 'slide_from_bottom', presentation: 'card' }}
-          />
-          <Stack.Screen name="creator/[id]" />
-          <Stack.Screen name="creator-dashboard" />
-          <Stack.Screen name="brand-deals" />
-          <Stack.Screen name="shop" />
-          <Stack.Screen
-            name="auth/login"
-            options={{ animation: 'fade', presentation: 'modal' }}
-          />
-          <Stack.Screen
-            name="auth/signup"
-            options={{ animation: 'fade', presentation: 'modal' }}
-          />
-        </Stack>
-        <StatusBar style="light" />
-      </ThemeProvider>
+      <AppThemeProvider>
+        <InnerLayout />
+      </AppThemeProvider>
     </AuthProvider>
   );
 }

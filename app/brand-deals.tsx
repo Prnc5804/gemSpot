@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { Colors, Spacing, Radius, Typography, Layout } from '@/constants/theme';
+import { Colors, Spacing, Radius, Typography, Layout, Shadows } from '@/constants/theme';
 import { MOCK_CAMPAIGNS } from '@/constants/mock-data';
 import { CampaignCard } from '@/components/campaign-card';
 import { EmptyState } from '@/components/empty-state';
@@ -91,27 +91,41 @@ export default function BrandDealsScreen() {
 }
 
 const styles = StyleSheet.create({
-    screen: { flex: 1, backgroundColor: Colors.backgroundDark },
+    screen: { flex: 1, backgroundColor: Colors.backgroundLight },
     header: {
         flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
         paddingHorizontal: Spacing.sm, paddingVertical: Spacing.sm,
     },
     backBtn: { width: 40, height: 40, borderRadius: Radius.full, justifyContent: 'center', alignItems: 'center' },
-    headerTitle: { ...Typography.sectionTitle, color: Colors.textPrimaryDark },
-    infoBanner: {
-        flexDirection: 'row', gap: Spacing.sm, alignItems: 'flex-start',
-        backgroundColor: Colors.info + '15', marginHorizontal: Layout.screenPadding,
-        padding: Spacing.sm + 4, borderRadius: Radius.md, marginBottom: Spacing.sm,
+    headerTitle: {
+        fontSize: 22,
+        fontFamily: 'Inter_800ExtraBold',
+        fontWeight: '800',
+        color: Colors.textPrimaryLight,
     },
-    infoText: { ...Typography.caption, color: Colors.info, flex: 1, lineHeight: 18 },
-    filterRow: { paddingHorizontal: Layout.screenPadding, gap: Spacing.sm, paddingBottom: Spacing.sm },
+    infoBanner: {
+        flexDirection: 'row', gap: Spacing.sm, alignItems: 'center',
+        backgroundColor: Colors.primary + '10', marginHorizontal: Layout.screenPadding,
+        padding: Spacing.md, borderRadius: Radius.lg, marginBottom: Spacing.lg,
+        borderWidth: 1, borderColor: Colors.primary + '20',
+    },
+    infoText: {
+        fontSize: 13,
+        fontFamily: 'Inter_500Medium',
+        fontWeight: '500',
+        color: Colors.primary,
+        flex: 1,
+        lineHeight: 18,
+    },
+    filterRow: { paddingHorizontal: Layout.screenPadding, gap: Spacing.sm, paddingBottom: Spacing.md },
     filterChip: {
-        paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm,
-        borderRadius: Radius.full, backgroundColor: Colors.cardDark,
-        borderWidth: 1, borderColor: Colors.borderDark,
+        paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm + 2,
+        borderRadius: Radius.full, backgroundColor: Colors.white,
+        borderWidth: 1, borderColor: 'rgba(0,0,0,0.04)',
+        ...Shadows.sm,
     },
     filterChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-    filterText: { ...Typography.body, color: Colors.textSecondaryDark, fontSize: 13 },
-    filterTextActive: { color: Colors.white, fontWeight: '600' },
+    filterText: { fontSize: 14, fontFamily: 'Inter_500Medium', fontWeight: '500', color: Colors.textSecondaryLight },
+    filterTextActive: { color: Colors.white, fontFamily: 'Inter_600SemiBold', fontWeight: '600' },
     scrollContent: { paddingHorizontal: Layout.screenPadding },
 });

@@ -1,50 +1,38 @@
 /**
- * SearchBar — Animated search input with icon
+ * SearchBar — White rounded input with search icon
+ * Matches Stitch search bar design
  */
 
-import React, { useState } from 'react';
+import React from 'react';
 import { View, TextInput, StyleSheet, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, Radius, Typography, Layout } from '@/constants/theme';
-import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming } from 'react-native-reanimated';
+import { Colors, Spacing, Radius, Shadows } from '@/constants/theme';
+import { useTheme } from '@/contexts/theme-context';
 
 interface SearchBarProps {
+    value: string;
+    onChangeText: (text: string) => void;
     placeholder?: string;
-    value?: string;
-    onChangeText?: (text: string) => void;
-    onFocus?: () => void;
+    onSubmit?: () => void;
 }
 
-export function SearchBar({ placeholder = 'Search creators, videos...', value, onChangeText, onFocus }: SearchBarProps) {
-    const [isFocused, setIsFocused] = useState(false);
-    const borderOpacity = useSharedValue(0);
-
-    const borderStyle = useAnimatedStyle(() => ({
-        borderColor: isFocused ? Colors.primary : Colors.borderDark,
-        borderWidth: isFocused ? 1.5 : 1,
-    }));
+export function SearchBar({ value, onChangeText, placeholder = 'Search videos, creators, or topics', onSubmit }: SearchBarProps) {
+    const { isDark, colors } = useTheme();
+    const cardBg = isDark ? colors.cardElevated : Colors.white;
 
     return (
-        <Animated.View style={[styles.container, borderStyle]}>
-            <Ionicons name="search" size={18} color={isFocused ? Colors.primary : Colors.textMutedDark} />
+        <View style={[styles.container, { backgroundColor: cardBg }]}>
+            <Ionicons name="search" size={20} color={colors.textMuted} style={styles.icon} />
             <TextInput
-                style={styles.input}
-                placeholder={placeholder}
-                placeholderTextColor={Colors.textMutedDark}
+                style={[styles.input, { color: colors.text }]}
                 value={value}
                 onChangeText={onChangeText}
-                onFocus={() => {
-                    setIsFocused(true);
-                    onFocus?.();
-                }}
-                onBlur={() => setIsFocused(false)}
+                placeholder={placeholder}
+                placeholderTextColor={colors.textMuted}
+                returnKeyType="search"
+                onSubmitEditing={onSubmit}
             />
-            {value && value.length > 0 && (
-                <Pressable onPress={() => onChangeText?.('')}>
-                    <Ionicons name="close-circle" size={18} color={Colors.textMutedDark} />
-                </Pressable>
-            )}
-        </Animated.View>
+        </View>
     );
 }
 
@@ -52,16 +40,18 @@ const styles = StyleSheet.create({
     container: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: Colors.cardDark,
-        borderRadius: Radius.md,
-        paddingHorizontal: Spacing.sm + 4,
-        height: Layout.inputHeight,
-        gap: Spacing.sm,
-        marginHorizontal: Layout.screenPadding,
+        backgroundColor: Colors.white,
+        borderRadius: Radius.xl,
+        height: 52,
+        paddingHorizontal: Spacing.lg,
+        ...Shadows.sm,
+    },
+    icon: {
+        marginRight: Spacing.sm,
     },
     input: {
         flex: 1,
-        ...Typography.body,
-        color: Colors.textPrimaryDark,
+        fontSize: 15,
+        fontFamily: 'Inter_400Regular',
     },
 });

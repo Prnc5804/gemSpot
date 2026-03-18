@@ -11,23 +11,32 @@ import {
   TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { Colors, Spacing, Radius, Typography, Shadows, Layout } from '@/constants/theme';
 import { CATEGORIES } from '@/constants/types';
-import { MOCK_VIDEOS, MOCK_CREATORS } from '@/constants/mock-data';
+import { MOCK_VIDEOS } from '@/constants/mock-data';
 import { CategoryChip } from '@/components/category-chip';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTheme } from '@/contexts/theme-context';
 import { db } from '@/services/firebase';
 import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
-import type { Video, Creator } from '@/constants/types';
+import type { Video } from '@/constants/types';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const THUMB_HEIGHT = SCREEN_WIDTH * 0.5625; // 16:9
+
+/** Gem Score formula: based on upvotes, comments, YT views */
+export function computeGemScore(v: Video): number {
+  const nUp = Math.min(5, (v.voteCount || 0) / 100);
+  const nComm = Math.min(5, (v.commentCount || 0) / 20);
+  const nViews = Math.min(5, (v.viewsFromPlatform || 0) / 1000);
+  const raw = (nUp * 0.4 + nComm * 0.3 + nViews * 0.3) * 2;
+  return Math.min(10, parseFloat(Math.max(0.1, raw).toFixed(1)));
+}
 
 export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { isDark, colors } = useTheme();
   const [refreshing, setRefreshing] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [allVideos, setAllVideos] = useState<Video[]>(MOCK_VIDEOS);
@@ -38,7 +47,6 @@ export default function HomeScreen() {
       const videosQuery = query(collection(db, 'videos'), orderBy('createdAt', 'desc'), limit(30));
       const videosSnap = await getDocs(videosQuery);
       const firestoreVideos = videosSnap.docs.map((d: any) => ({ ...d.data(), id: d.id })) as Video[];
-
       const combinedVideos = [...firestoreVideos, ...MOCK_VIDEOS.filter(
         mv => !firestoreVideos.some(fv => fv.id === mv.id)
       )];
@@ -56,7 +64,6 @@ export default function HomeScreen() {
     setRefreshing(false);
   }, []);
 
-  // Filter videos
   const filteredVideos = allVideos.filter(v => {
     if (selectedCategory && v.category !== selectedCategory) return false;
     if (searchQuery) {
@@ -66,30 +73,25 @@ export default function HomeScreen() {
     return true;
   });
 
-  // Compute GemScore for a video
-  const getGemScore = (v: Video): number | null => {
-    const r = v.ratings;
-    if (!r || (!r.editing && !r.audio && !r.content)) return null;
-    const avg = ((r.editing + r.audio + r.content) / 3) * 2;
-    return Math.min(10, parseFloat(avg.toFixed(1)));
-  };
-
   return (
-    <View style={[styles.screen, { paddingTop: insets.top }]}>
+    <View style={[styles.screen, { paddingTop: insets.top, backgroundColor: colors.background }]}>
       {/* ═══ HEADER ═══ */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Text style={styles.logoIcon}>💎</Text>
-          <Text style={styles.logo}>
+          <Text style={[styles.logo, { color: colors.text }]}>
             Gem<Text style={styles.logoAccent}>Spots</Text>
           </Text>
         </View>
-        <Pressable style={styles.searchBar}>
+        <Pressable style={[styles.searchBar, {
+          backgroundColor: isDark ? colors.cardElevated : Colors.white,
+          borderColor: isDark ? colors.border : 'rgba(0,0,0,0.04)',
+        }]}>
           <Ionicons name="search" size={16} color={Colors.primary} />
           <TextInput
-            style={styles.searchInput}
+            style={[styles.searchInput, { color: colors.text }]}
             placeholder="Search creators..."
-            placeholderTextColor={Colors.textMutedDark}
+            placeholderTextColor={colors.textMuted}
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
@@ -134,13 +136,13 @@ export default function HomeScreen() {
       >
         {filteredVideos.length === 0 ? (
           <View style={styles.emptyState}>
-            <Ionicons name="videocam-off-outline" size={48} color={Colors.textMutedDark} />
-            <Text style={styles.emptyTitle}>No videos found</Text>
-            <Text style={styles.emptyHint}>Try a different category or search term</Text>
+            <Ionicons name="videocam-off-outline" size={48} color={colors.textMuted} />
+            <Text style={[styles.emptyTitle, { color: colors.textSecondary }]}>No videos found</Text>
+            <Text style={[styles.emptyHint, { color: colors.textMuted }]}>Try a different category or search term</Text>
           </View>
         ) : (
           filteredVideos.map((video) => {
-            const score = getGemScore(video);
+            const score = computeGemScore(video);
             return (
               <Pressable
                 key={video.id}
@@ -148,38 +150,34 @@ export default function HomeScreen() {
                 onPress={() => router.push(`/video/${video.id}` as any)}
               >
                 {/* Thumbnail */}
-                <View style={styles.thumbContainer}>
+                <View style={[styles.thumbContainer, {
+                  backgroundColor: isDark ? colors.cardElevated : Colors.cardLightElevated,
+                }]}>
                   <Image source={{ uri: video.thumbnailUrl }} style={styles.thumbnail} />
-
-                  {/* GemScore Badge */}
-                  {score !== null && (
-                    <View style={styles.gemScoreBadge}>
-                      <Ionicons name="diamond" size={12} color={Colors.white} />
-                      <Text style={styles.gemScoreText}>{score}</Text>
-                    </View>
-                  )}
-
+                  {/* GemScore Badge — top-right */}
+                  <View style={styles.gemScoreBadge}>
+                    <Ionicons name="diamond" size={11} color={Colors.white} />
+                    <Text style={styles.gemScoreText}>{score}</Text>
+                  </View>
                   {/* Play overlay */}
                   <View style={styles.playOverlay}>
                     <View style={styles.playCircle}>
                       <Ionicons name="play" size={24} color={Colors.white} />
                     </View>
                   </View>
-
-                  {/* Duration badge (bottom-right) */}
+                  {/* Views badge */}
                   <View style={styles.durationBadge}>
                     <Text style={styles.durationText}>
-                      {video.viewsFromPlatform ? `${(video.viewsFromPlatform / 1000).toFixed(1)}K` : '0:00'}
+                      {video.viewsFromPlatform ? `${(video.viewsFromPlatform / 1000).toFixed(1)}K` : '0'}
                     </Text>
                   </View>
                 </View>
-
                 {/* Video Info Row */}
                 <View style={styles.infoRow}>
                   <Image source={{ uri: video.creatorAvatar }} style={styles.avatarSmall} />
                   <View style={styles.infoText}>
-                    <Text style={styles.videoTitle} numberOfLines={2}>{video.title}</Text>
-                    <Text style={styles.videoMeta}>
+                    <Text style={[styles.videoTitle, { color: colors.text }]} numberOfLines={2}>{video.title}</Text>
+                    <Text style={[styles.videoMeta, { color: colors.textMuted }]}>
                       {video.creatorName} · {(video.viewsFromPlatform || 0).toLocaleString()} views
                     </Text>
                   </View>
@@ -188,23 +186,14 @@ export default function HomeScreen() {
             );
           })
         )}
-
         <View style={{ height: Layout.tabBarHeight + Spacing.xl }} />
       </ScrollView>
     </View>
   );
 }
 
-// ═══════════════════════════════════════════════
-// STYLES
-// ═══════════════════════════════════════════════
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: Colors.backgroundDark,
-  },
-
-  // ─── Header ───
+  screen: { flex: 1 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -213,84 +202,50 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
     gap: 12,
   },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  logoIcon: {
-    fontSize: 22,
-  },
-  logo: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: Colors.textPrimaryDark,
-    letterSpacing: -0.5,
-  },
-  logoAccent: {
-    color: Colors.primary,
-  },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  logoIcon: { fontSize: 22 },
+  logo: { fontSize: 22, fontWeight: '800', letterSpacing: -0.5 },
+  logoAccent: { color: Colors.primary },
   searchBar: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.cardDark,
     borderRadius: Radius.full,
     paddingHorizontal: 12,
     height: 36,
     gap: 6,
     borderWidth: 1,
-    borderColor: Colors.borderDark,
   },
-  searchInput: {
-    flex: 1,
-    fontSize: 13,
-    color: Colors.textPrimaryDark,
-    padding: 0,
-  },
-
-  // ─── Category Chips ───
+  searchInput: { flex: 1, fontSize: 13, padding: 0 },
   chipRow: {
     paddingHorizontal: Layout.screenPadding,
-    paddingBottom: Spacing.sm,
+    paddingVertical: Spacing.sm,
+    gap: 8,
   },
-
-  // ─── Feed ───
-  feedContent: {
-    paddingBottom: Spacing.md,
-  },
-
-  // ─── Video Card ───
-  videoCard: {
-    marginBottom: 20,
-  },
+  feedContent: { paddingBottom: Spacing.md },
+  videoCard: { marginBottom: 20 },
   thumbContainer: {
-    width: SCREEN_WIDTH,
-    height: THUMB_HEIGHT,
-    backgroundColor: Colors.surfaceDark,
+    width: SCREEN_WIDTH - Spacing.lg * 2,
+    height: (SCREEN_WIDTH - Spacing.lg * 2) * 0.5625,
     position: 'relative',
+    borderRadius: Radius.xl,
+    overflow: 'hidden',
+    marginHorizontal: Spacing.lg,
   },
-  thumbnail: {
-    width: '100%',
-    height: '100%',
-  },
+  thumbnail: { width: '100%', height: '100%' },
   gemScoreBadge: {
     position: 'absolute',
     top: 10,
-    left: 10,
+    right: 10,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(16, 185, 129, 0.9)',
-    paddingHorizontal: 10,
+    gap: 3,
+    backgroundColor: Colors.primary + 'E6',
+    paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: Radius.full,
   },
-  gemScoreText: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: Colors.white,
-  },
+  gemScoreText: { fontSize: 12, fontWeight: '800', color: Colors.white },
   playOverlay: {
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
@@ -300,7 +255,7 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: 'rgba(16, 185, 129, 0.5)',
+    backgroundColor: Colors.primary + '80',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -313,13 +268,7 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 4,
   },
-  durationText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: Colors.white,
-  },
-
-  // ─── Info Row ───
+  durationText: { fontSize: 11, fontWeight: '600', color: Colors.white },
   infoRow: {
     flexDirection: 'row',
     paddingHorizontal: Layout.screenPadding,
@@ -330,38 +279,13 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: Colors.surfaceDark,
     borderWidth: 1.5,
     borderColor: Colors.primary,
   },
-  infoText: {
-    flex: 1,
-  },
-  videoTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: Colors.textPrimaryDark,
-    lineHeight: 20,
-  },
-  videoMeta: {
-    fontSize: 12,
-    color: Colors.textSecondaryDark,
-    marginTop: 2,
-  },
-
-  // ─── Empty ───
-  emptyState: {
-    alignItems: 'center',
-    paddingTop: 60,
-    gap: 8,
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.textSecondaryDark,
-  },
-  emptyHint: {
-    fontSize: 13,
-    color: Colors.textMutedDark,
-  },
+  infoText: { flex: 1 },
+  videoTitle: { fontSize: 15, fontWeight: '600', lineHeight: 20 },
+  videoMeta: { fontSize: 12, marginTop: 2 },
+  emptyState: { alignItems: 'center', paddingTop: 60, gap: 8 },
+  emptyTitle: { fontSize: 16, fontWeight: '600' },
+  emptyHint: { fontSize: 13 },
 });
