@@ -2,28 +2,28 @@
  * Upload Screen — Real video submission with YouTube API verification
  */
 
-import React, { useState } from 'react';
-import {
-    View,
-    Text,
-    StyleSheet,
-    ScrollView,
-    TextInput,
-    Pressable,
-    Alert,
-    Image,
-    ActivityIndicator,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Colors, Spacing, Radius, Typography, Shadows, Layout, Animation } from '@/constants/theme';
+import { Animation, Colors, Layout, Radius, Shadows, Spacing, Typography } from '@/constants/theme';
 import { CATEGORIES } from '@/constants/types';
-import Animated, { useSharedValue, useAnimatedStyle, withSpring, withSequence } from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/contexts/auth-context';
 import { useTheme } from '@/contexts/theme-context';
-import { fetchVideoInfo, isEligible, type YouTubeVideoInfo } from '@/services/youtube-service';
 import { submitVideo } from '@/services/video-service';
+import { fetchVideoInfo, isEligible, type YouTubeVideoInfo } from '@/services/youtube-service';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import React, { useState } from 'react';
+import {
+    ActivityIndicator,
+    Alert,
+    Image,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
+} from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withSequence, withSpring } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -33,6 +33,7 @@ export default function UploadScreen() {
     const insets = useSafeAreaInsets();
     const { user } = useAuth();
     const { isDark, colors } = useTheme();
+    const isViewer = user?.role === 'viewer';
     const [mode, setMode] = useState<Mode>('gem');
     const [videoLink, setVideoLink] = useState('');
     const [channelLink, setChannelLink] = useState('');
@@ -186,11 +187,13 @@ export default function UploadScreen() {
                 {/* Mode Toggle */}
                 <View style={[styles.modeToggle, { backgroundColor: cardBg, borderColor }]}>
                     <Pressable
-                        style={[styles.modeBtn, mode === 'creator' && styles.modeBtnActive]}
-                        onPress={() => setMode('creator')}
+                        style={[styles.modeBtn, mode === 'creator' && styles.modeBtnActive, isViewer && { opacity: 0.4 }]}
+                        onPress={() => { if (!isViewer) setMode('creator'); }}
+                        disabled={isViewer}
                     >
                         <Ionicons name="videocam" size={18} color={mode === 'creator' ? Colors.white : colors.textSecondary} />
                         <Text style={[styles.modeText, { color: colors.textSecondary }, mode === 'creator' && styles.modeTextActive]}>My Video</Text>
+                        {isViewer && <Ionicons name="lock-closed" size={12} color={colors.textMuted} />}
                     </Pressable>
                     <Pressable
                         style={[styles.modeBtn, mode === 'gem' && styles.modeBtnActive]}
@@ -200,6 +203,14 @@ export default function UploadScreen() {
                         <Text style={[styles.modeText, { color: colors.textSecondary }, mode === 'gem' && styles.modeTextActive]}>Hidden Gem</Text>
                     </Pressable>
                 </View>
+                {isViewer && (
+                    <View style={[styles.viewerNote, { backgroundColor: Colors.info + '15', borderColor: Colors.info + '30' }]}>
+                        <Ionicons name="information-circle" size={16} color={Colors.info} />
+                        <Text style={[styles.viewerNoteText, { color: Colors.info }]}>
+                            Viewers can submit Hidden Gems only. Switch to Creator role in settings to upload your own videos.
+                        </Text>
+                    </View>
+                )}
 
                 {/* Form */}
                 <View style={styles.form}>
@@ -532,4 +543,12 @@ const styles = StyleSheet.create({
         gap: Spacing.sm, height: Layout.buttonHeight + 4,
     },
     submitText: { ...Typography.button, color: Colors.white, fontSize: 16 },
+
+    // Viewer restriction note
+    viewerNote: {
+        flexDirection: 'row', alignItems: 'center', gap: 8,
+        paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm,
+        borderRadius: Radius.md, borderWidth: 1, marginTop: Spacing.sm,
+    },
+    viewerNoteText: { flex: 1, fontSize: 12, fontWeight: '500', lineHeight: 18 },
 });

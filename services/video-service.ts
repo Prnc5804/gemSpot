@@ -2,26 +2,26 @@
  * Video Service — Submit, query, and vote on videos (JS SDK)
  */
 
-import { db } from './firebase';
+import type { Category, SortOption, SubscriberRange, Video } from '@/constants/types';
 import {
+    arrayRemove,
+    arrayUnion,
     collection,
     doc,
-    setDoc,
     getDoc,
     getDocs,
-    updateDoc,
     increment,
-    query,
-    where,
-    orderBy,
     limit,
+    orderBy,
+    query,
     serverTimestamp,
-    arrayUnion,
-    arrayRemove,
+    setDoc,
+    updateDoc,
+    where,
 } from 'firebase/firestore';
 import { getOrCreateCreator } from './creator-service';
+import { db } from './firebase';
 import { fetchVideoInfo, isEligible } from './youtube-service';
-import type { Video, Category, SortOption, SubscriberRange } from '@/constants/types';
 
 export interface SubmitVideoInput {
     youtubeUrl: string;
@@ -107,6 +107,13 @@ export async function submitVideo(input: SubmitVideoInput): Promise<SubmitResult
         await updateDoc(doc(db, 'creators', creator.id), {
             videosCount: increment(1),
         });
+
+        // Increment user's posts count
+        try {
+            await updateDoc(doc(db, 'users', input.submittedBy), {
+                posts: increment(1),
+            });
+        } catch (_) { /* user doc may not exist for anonymous */ }
 
         return {
             success: true,
@@ -261,3 +268,18 @@ export async function deleteVideo(videoId: string, userId: string): Promise<{ su
         return { success: false, error: error.message || 'Failed to delete video' };
     }
 }
+
+/**
+ * Record a view on a video (increments viewsFromPlatform)
+ */
+export async function viewVideo(videoId: string): Promise<void> {
+    try {
+        const videoRef = doc(db, 'videos', videoId);
+        await updateDoc(videoRef, {
+            viewsFromPlatform: increment(1),
+        });
+    } catch (error) {
+        console.log('Failed to record view:', error);
+    }
+}
+

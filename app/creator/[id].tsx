@@ -1,81 +1,166 @@
 /**
- * Creator Profile Screen — Shows claimed vs unclaimed creator info
+ * Creator Profile Screen — Fetches real data from Firestore
  */
 
+import { UnclaimedBadge } from '@/components/unclaimed-badge';
+import { VideoCard } from '@/components/video-card';
+import { Colors, Layout, Radius, Shadows, Spacing } from '@/constants/theme';
+import type { Video } from '@/constants/types';
+import { useAuth } from '@/contexts/auth-context';
+import { useTheme } from '@/contexts/theme-context';
+import { db } from '@/services/firebase';
+import { isFollowing as checkIsFollowing, followUser, unfollowUser } from '@/services/follow-service';
+import { Ionicons } from '@expo/vector-icons';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { collection, doc, getDoc, getDocs, orderBy, query, where } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
 import {
-    View,
-    Text,
-    StyleSheet,
-    ScrollView,
+    ActivityIndicator,
     Image,
     Pressable,
-    ActivityIndicator,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Colors, Spacing, Radius, Typography, Shadows, Layout } from '@/constants/theme';
-import { VideoCard } from '@/components/video-card';
-import { UnclaimedBadge } from '@/components/unclaimed-badge';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { MOCK_VIDEOS, MOCK_CREATORS } from '@/constants/mock-data';
+
+interface CreatorData {
+    id: string;
+    name: string;
+    profilePicture?: string;
+    channelId?: string;
+    subscriberCount: number;
+    claimed: boolean;
+    userId?: string | null;
+    totalVotes: number;
+    videosCount: number;
+    rank?: number;
+}
 
 export default function CreatorProfileScreen() {
     const { id } = useLocalSearchParams<{ id: string }>();
     const router = useRouter();
     const insets = useSafeAreaInsets();
+    const { isDark, colors } = useTheme();
+    const { user } = useAuth();
 
-    // In production, fetch from Firestore using getCreatorById(id)
-    // For now, use mock data
-    const creator = MOCK_CREATORS.find((c) => c.id === id) || {
-        id: id || '0',
-        name: 'Unknown Creator',
-        avatar: 'https://ui-avatars.com/api/?name=UC&background=10B981&color=fff&size=128',
-        channelUrl: '',
-        channelId: '',
-        subscriberCount: 420,
-        claimed: false,
-        userId: null,
-        totalVotes: 85,
-        totalViews: 1200,
-        rank: 12,
-        growthPercent: 15,
-        isVerified: false,
-        joinedAt: '2025-01-15',
-        videosCount: 3,
-        badges: [],
-        level: 1,
-        xp: 0,
-        xpToNext: 100,
+    const [loading, setLoading] = useState(true);
+    const [creator, setCreator] = useState<CreatorData | null>(null);
+    const [creatorVideos, setCreatorVideos] = useState<Video[]>([]);
+    const [following, setFollowing] = useState(false);
+
+    useEffect(() => {
+        fetchCreator();
+    }, [id]);
+
+    const fetchCreator = async () => {
+        setLoading(true);
+        try {
+            // Fetch creator doc
+            const creatorSnap = await getDoc(doc(db, 'creators', id!));
+            if (creatorSnap.exists()) {
+                const data = { ...creatorSnap.data(), id: creatorSnap.id } as CreatorData;
+                setCreator(data);
+
+                // Fetch creator's videos
+                const videosQ = query(
+                    collection(db, 'videos'),
+                    where('creatorId', '==', id),
+                    orderBy('createdAt', 'desc'),
+                );
+                const videosSnap = await getDocs(videosQ);
+                setCreatorVideos(videosSnap.docs.map((d: any) => ({ ...d.data(), id: d.id })) as Video[]);
+
+                // Check follow status
+                if (user?.id) {
+                    const isFollow = await checkIsFollowing(user.id, id!);
+                    setFollowing(isFollow);
+                }
+            } else {
+                setCreator(null);
+            }
+        } catch (error) {
+            console.log('Failed to load creator:', error);
+            setCreator(null);
+        } finally {
+            setLoading(false);
+        }
     };
 
-    // Check if creator is claimed — mock: first 3 are claimed
-    const isClaimed = MOCK_CREATORS.indexOf(creator as any) < 3;
-    const creatorVideos = MOCK_VIDEOS.filter((v) => v.creatorId === creator.id).slice(0, 6);
+    const handleFollow = async () => {
+        if (!user?.id || !id) return;
+        if (following) {
+            setFollowing(false);
+            await unfollowUser(user.id, id);
+        } else {
+            setFollowing(true);
+            await followUser(user.id, id);
+        }
+    };
+
+    if (loading) {
+        return (
+            <View style={[styles.screen, { paddingTop: insets.top, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }]}>
+                <ActivityIndicator size="large" color={Colors.primary} />
+            </View>
+        );
+    }
+
+    if (!creator) {
+        return (
+            <View style={[styles.screen, { paddingTop: insets.top, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }]}>
+                <Ionicons name="person-outline" size={48} color={colors.textMuted} />
+                <Text style={[styles.notFoundText, { color: colors.textSecondary }]}>Creator not found</Text>
+                <Pressable onPress={() => router.back()}>
+                    <Text style={[styles.goBackText, { color: Colors.primary }]}>Go Back</Text>
+                </Pressable>
+            </View>
+        );
+    }
+
+    const isClaimed = creator.claimed;
+    const avatar = creator.profilePicture || `https://ui-avatars.com/api/?name=${encodeURIComponent(creator.name)}&background=10B981&color=fff&size=128`;
 
     return (
-        <View style={[styles.screen, { paddingTop: insets.top }]}>
-            {/* Header with back button */}
+        <View style={[styles.screen, { paddingTop: insets.top, backgroundColor: colors.background }]}>
+            {/* Header */}
             <View style={styles.header}>
-                <Pressable style={styles.backBtn} onPress={() => router.back()}>
-                    <Ionicons name="arrow-back" size={22} color={Colors.textPrimaryDark} />
+                <Pressable style={[styles.backBtn, { backgroundColor: isDark ? colors.cardElevated : Colors.white }]} onPress={() => router.back()}>
+                    <Ionicons name="arrow-back" size={22} color={colors.text} />
                 </Pressable>
-                <Text style={styles.headerTitle}>Creator Profile</Text>
+                <Text style={[styles.headerTitle, { color: colors.text }]}>Creator Profile</Text>
                 <View style={{ width: 40 }} />
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
                 {/* Avatar + Name + Stats */}
-                <View style={styles.profileCard}>
-                    <Image source={{ uri: creator.avatar }} style={styles.avatar} />
-                    <Text style={styles.creatorName}>{creator.name}</Text>
+                <View style={[styles.profileCard, { backgroundColor: isDark ? colors.cardElevated : Colors.white }]}>
+                    <Image source={{ uri: avatar }} style={styles.avatar} />
+                    <Text style={[styles.creatorName, { color: colors.text }]}>{creator.name}</Text>
                     <View style={styles.subsRow}>
-                        <Ionicons name="people" size={14} color={Colors.textMutedDark} />
-                        <Text style={styles.subsText}>{creator.subscriberCount.toLocaleString()} subscribers</Text>
+                        <Ionicons name="people" size={14} color={colors.textMuted} />
+                        <Text style={[styles.subsText, { color: colors.textMuted }]}>{(creator.subscriberCount || 0).toLocaleString()} subscribers</Text>
                     </View>
 
-                    {/* Claimed / Unclaimed Status */}
+                    {/* Follow Button */}
+                    {user?.id && user.id !== creator.userId && (
+                        <Pressable
+                            style={[styles.followBtn, following && styles.followBtnActive]}
+                            onPress={handleFollow}
+                        >
+                            <Ionicons
+                                name={following ? 'checkmark' : 'person-add'}
+                                size={16}
+                                color={following ? Colors.white : Colors.primary}
+                            />
+                            <Text style={[styles.followBtnText, following && styles.followBtnTextActive]}>
+                                {following ? 'Following' : 'Follow'}
+                            </Text>
+                        </Pressable>
+                    )}
+
+                    {/* Claimed / Unclaimed */}
                     {isClaimed ? (
                         <View style={styles.claimedBadge}>
                             <Ionicons name="checkmark-circle" size={16} color={Colors.primary} />
@@ -85,62 +170,34 @@ export default function CreatorProfileScreen() {
                         <UnclaimedBadge creatorName={creator.name} variant="chip" />
                     )}
 
-                    {/* Stats Row */}
+                    {/* Stats */}
                     <View style={styles.statsRow}>
                         <View style={styles.statItem}>
-                            <Text style={styles.statValue}>{creator.totalVotes}</Text>
-                            <Text style={styles.statLabel}>Votes</Text>
+                            <Text style={[styles.statValue, { color: colors.text }]}>{creator.totalVotes || 0}</Text>
+                            <Text style={[styles.statLabel, { color: colors.textMuted }]}>Votes</Text>
                         </View>
-                        <View style={styles.statDivider} />
+                        <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
                         <View style={styles.statItem}>
-                            <Text style={styles.statValue}>{creator.videosCount}</Text>
-                            <Text style={styles.statLabel}>Videos</Text>
+                            <Text style={[styles.statValue, { color: colors.text }]}>{creator.videosCount || 0}</Text>
+                            <Text style={[styles.statLabel, { color: colors.textMuted }]}>Videos</Text>
                         </View>
-                        <View style={styles.statDivider} />
+                        <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
                         <View style={styles.statItem}>
-                            <Text style={styles.statValue}>#{creator.rank}</Text>
-                            <Text style={styles.statLabel}>Rank</Text>
-                        </View>
-                        <View style={styles.statDivider} />
-                        <View style={styles.statItem}>
-                            <Text style={[styles.statValue, { color: Colors.primary }]}>+{creator.growthPercent}%</Text>
-                            <Text style={styles.statLabel}>Growth</Text>
+                            <Text style={[styles.statValue, { color: colors.text }]}>#{creator.rank || '-'}</Text>
+                            <Text style={[styles.statLabel, { color: colors.textMuted }]}>Rank</Text>
                         </View>
                     </View>
                 </View>
 
-                {/* Unclaimed Banner (full) */}
+                {/* Unclaimed Banner */}
                 {!isClaimed && (
                     <View style={styles.bannerContainer}>
                         <UnclaimedBadge creatorName={creator.name} variant="banner" />
                     </View>
                 )}
 
-                {/* What unclaimed creators can't do */}
-                {!isClaimed && (
-                    <View style={styles.restrictionsCard}>
-                        <Text style={styles.restrictionsTitle}>Unclaimed creators cannot:</Text>
-                        <View style={styles.restrictionItem}>
-                            <Ionicons name="close-circle" size={16} color={Colors.error} />
-                            <Text style={styles.restrictionText}>Edit profile</Text>
-                        </View>
-                        <View style={styles.restrictionItem}>
-                            <Ionicons name="close-circle" size={16} color={Colors.error} />
-                            <Text style={styles.restrictionText}>Apply to brand deals</Text>
-                        </View>
-                        <View style={styles.restrictionItem}>
-                            <Ionicons name="close-circle" size={16} color={Colors.error} />
-                            <Text style={styles.restrictionText}>Boost videos</Text>
-                        </View>
-                        <View style={styles.restrictionItem}>
-                            <Ionicons name="close-circle" size={16} color={Colors.error} />
-                            <Text style={styles.restrictionText}>Access analytics</Text>
-                        </View>
-                    </View>
-                )}
-
-                {/* Videos by this creator */}
-                <Text style={styles.sectionTitle}>Videos</Text>
+                {/* Videos */}
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>Videos</Text>
                 {creatorVideos.length > 0 ? (
                     <View style={styles.videoList}>
                         {creatorVideos.map((video) => (
@@ -154,8 +211,8 @@ export default function CreatorProfileScreen() {
                     </View>
                 ) : (
                     <View style={styles.emptyVideos}>
-                        <Ionicons name="videocam-off-outline" size={40} color={Colors.textMutedDark} />
-                        <Text style={styles.emptyText}>No videos submitted yet</Text>
+                        <Ionicons name="videocam-off-outline" size={40} color={colors.textMuted} />
+                        <Text style={[styles.emptyText, { color: colors.textMuted }]}>No videos submitted yet</Text>
                     </View>
                 )}
 
@@ -166,152 +223,54 @@ export default function CreatorProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-    screen: {
-        flex: 1,
-        backgroundColor: Colors.backgroundDark,
-    },
+    screen: { flex: 1 },
     header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: Layout.screenPadding,
-        paddingVertical: Spacing.sm,
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+        paddingHorizontal: Layout.screenPadding, paddingVertical: Spacing.sm,
     },
     backBtn: {
-        width: 40,
-        height: 40,
-        borderRadius: Radius.full,
-        backgroundColor: Colors.cardDark,
-        justifyContent: 'center',
-        alignItems: 'center',
+        width: 40, height: 40, borderRadius: Radius.full,
+        justifyContent: 'center', alignItems: 'center',
     },
-    headerTitle: {
-        ...Typography.screenTitle,
-        color: Colors.textPrimaryDark,
-        fontSize: 18,
-    },
-    content: {
-        paddingHorizontal: Layout.screenPadding,
-    },
-
-    // ── Profile Card ──
+    headerTitle: { fontSize: 18, fontWeight: '700' },
+    content: { paddingHorizontal: Layout.screenPadding },
     profileCard: {
-        alignItems: 'center',
-        backgroundColor: Colors.cardDark,
-        borderRadius: Radius.xl,
-        padding: Spacing.lg,
-        marginBottom: Spacing.md,
-        ...Shadows.md,
+        alignItems: 'center', borderRadius: Radius.xl,
+        padding: Spacing.lg, marginBottom: Spacing.md, ...Shadows.md,
     },
     avatar: {
-        width: 90,
-        height: 90,
-        borderRadius: 45,
-        borderWidth: 3,
-        borderColor: Colors.primary,
+        width: 90, height: 90, borderRadius: 45,
+        borderWidth: 3, borderColor: Colors.primary, marginBottom: Spacing.sm,
+    },
+    creatorName: { fontSize: 22, fontWeight: '800', marginBottom: 4 },
+    subsRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: Spacing.sm },
+    subsText: { fontSize: 14 },
+    followBtn: {
+        flexDirection: 'row', alignItems: 'center', gap: 6,
+        paddingHorizontal: 20, paddingVertical: 10,
+        borderRadius: Radius.full, borderWidth: 1.5, borderColor: Colors.primary,
         marginBottom: Spacing.sm,
     },
-    creatorName: {
-        ...Typography.screenTitle,
-        color: Colors.textPrimaryDark,
-        fontSize: 22,
-        marginBottom: 4,
-    },
-    subsRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-        marginBottom: Spacing.sm,
-    },
-    subsText: {
-        ...Typography.body,
-        color: Colors.textMutedDark,
-    },
+    followBtnActive: { backgroundColor: Colors.primary },
+    followBtnText: { fontSize: 14, fontWeight: '700', color: Colors.primary },
+    followBtnTextActive: { color: Colors.white },
     claimedBadge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
+        flexDirection: 'row', alignItems: 'center', gap: 4,
         backgroundColor: Colors.primary + '20',
-        paddingHorizontal: Spacing.sm + 4,
-        paddingVertical: 4,
-        borderRadius: Radius.full,
-        marginBottom: Spacing.md,
+        paddingHorizontal: 16, paddingVertical: 4,
+        borderRadius: Radius.full, marginBottom: Spacing.md,
     },
-    claimedText: {
-        ...Typography.badge,
-        color: Colors.primary,
-        fontSize: 12,
-    },
-    statsRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginTop: Spacing.sm,
-    },
-    statItem: {
-        flex: 1,
-        alignItems: 'center',
-    },
-    statValue: {
-        fontFamily: 'Inter_700Bold',
-        fontWeight: '700',
-        fontSize: 18,
-        color: Colors.textPrimaryDark,
-    },
-    statLabel: {
-        ...Typography.caption,
-        color: Colors.textMutedDark,
-        marginTop: 2,
-    },
-    statDivider: {
-        width: 1,
-        height: 30,
-        backgroundColor: Colors.borderDark,
-    },
-
-    // ── Unclaimed Banner ──
-    bannerContainer: {
-        marginBottom: Spacing.md,
-    },
-
-    // ── Restrictions Card ──
-    restrictionsCard: {
-        backgroundColor: Colors.cardDark,
-        borderRadius: Radius.lg,
-        padding: Spacing.md,
-        marginBottom: Spacing.md,
-        gap: Spacing.sm,
-    },
-    restrictionsTitle: {
-        ...Typography.cardTitle,
-        color: Colors.textPrimaryDark,
-        marginBottom: 4,
-    },
-    restrictionItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: Spacing.sm,
-    },
-    restrictionText: {
-        ...Typography.body,
-        color: Colors.textSecondaryDark,
-    },
-
-    // ── Videos Section ──
-    sectionTitle: {
-        ...Typography.sectionTitle,
-        color: Colors.textPrimaryDark,
-        marginBottom: Spacing.sm,
-    },
-    videoList: {
-        gap: Spacing.sm,
-    },
-    emptyVideos: {
-        alignItems: 'center',
-        paddingVertical: Spacing.xl * 2,
-        gap: Spacing.sm,
-    },
-    emptyText: {
-        ...Typography.body,
-        color: Colors.textMutedDark,
-    },
+    claimedText: { fontSize: 12, fontWeight: '700', color: Colors.primary },
+    statsRow: { flexDirection: 'row', alignItems: 'center', marginTop: Spacing.sm },
+    statItem: { flex: 1, alignItems: 'center' },
+    statValue: { fontSize: 18, fontWeight: '700' },
+    statLabel: { fontSize: 12, marginTop: 2 },
+    statDivider: { width: 1, height: 30 },
+    bannerContainer: { marginBottom: Spacing.md },
+    sectionTitle: { fontSize: 18, fontWeight: '700', marginBottom: Spacing.sm },
+    videoList: { gap: Spacing.sm },
+    emptyVideos: { alignItems: 'center', paddingVertical: Spacing.xl * 2, gap: Spacing.sm },
+    emptyText: { fontSize: 14 },
+    notFoundText: { fontSize: 16, fontWeight: '600', marginTop: 12 },
+    goBackText: { fontSize: 14, fontWeight: '600', marginTop: 8 },
 });

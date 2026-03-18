@@ -1,38 +1,38 @@
 /**
- * Video Detail Screen — Custom embedded player, Gem Score, Upvote/Comment/Save
+ * Video Detail Screen — Real data from Firestore, no mock fallback
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import { VideoCard } from '@/components/video-card';
+import { Animation, Colors, Layout, Radius, Shadows, Spacing } from '@/constants/theme';
+import type { Comment as CommentType, Video } from '@/constants/types';
+import { useAuth } from '@/contexts/auth-context';
+import { useTheme } from '@/contexts/theme-context';
+import { addComment, getComments } from '@/services/comment-service';
+import { db } from '@/services/firebase';
+import { isFollowing as checkIsFollowing, followUser, unfollowUser } from '@/services/follow-service';
+import { incrementVoteCount } from '@/services/user-service';
+import { viewVideo, voteVideo } from '@/services/video-service';
+import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { collection, doc, getDoc, getDocs, limit, orderBy, query } from 'firebase/firestore';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-    View,
-    Text,
-    StyleSheet,
-    ScrollView,
-    Image,
-    Pressable,
-    TextInput,
-    Dimensions,
     ActivityIndicator,
     Alert,
+    Dimensions,
+    Image,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
-import { WebView } from 'react-native-webview';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Colors, Spacing, Radius, Typography, Shadows, Layout, Animation } from '@/constants/theme';
-import { MOCK_VIDEOS, MOCK_COMMENTS } from '@/constants/mock-data';
-import { VideoCard } from '@/components/video-card';
-import { useTheme } from '@/contexts/theme-context';
-import { useAuth } from '@/contexts/auth-context';
-import { voteVideo } from '@/services/video-service';
-import { incrementVoteCount } from '@/services/user-service';
-import { addComment, getComments } from '@/services/comment-service';
-import Animated, { useSharedValue, useAnimatedStyle, withSpring, withSequence } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useSharedValue, withSequence, withSpring } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { db } from '@/services/firebase';
-import { doc, getDoc, collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
-import type { Video, Comment as CommentType } from '@/constants/types';
+import { WebView } from 'react-native-webview';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -60,8 +60,8 @@ export default function VideoDetailScreen() {
     const [voted, setVoted] = useState(false);
     const [voteCount, setVoteCount] = useState(0);
     const [comment, setComment] = useState('');
-    const [comments, setComments] = useState<CommentType[]>(MOCK_COMMENTS);
-    const [isFollowing, setIsFollowing] = useState(false);
+    const [comments, setComments] = useState<CommentType[]>([]);
+    const [following, setFollowing] = useState(false);
     const [isSaved, setIsSaved] = useState(false);
     const [nextVideo, setNextVideo] = useState<Video | null>(null);
     const [isPlaying, setIsPlaying] = useState(false);
@@ -99,23 +99,26 @@ export default function VideoDetailScreen() {
                 const data = { ...docSnap.data(), id: docSnap.id } as Video;
                 setVideo(data);
                 setVoteCount(data.voteCount || 0);
-                // Check if user already voted
                 if (user?.id && data.voters?.includes(user.id)) {
                     setVoted(true);
                 }
+                // Record view
+                await viewVideo(id!);
             } else {
-                const mockVideo = MOCK_VIDEOS.find((v) => v.id === id) || MOCK_VIDEOS[0];
-                setVideo(mockVideo);
-                setVoteCount(mockVideo.voteCount || 0);
+                setVideo(null);
             }
 
-            // Load comments
+            // Load real comments
             try {
                 const realComments = await getComments(id!);
-                if (realComments.length > 0) {
-                    setComments(realComments);
-                }
+                setComments(realComments);
             } catch { }
+
+            // Check follow status
+            if (user?.id && video?.creatorId) {
+                const isFollow = await checkIsFollowing(user.id, video.creatorId);
+                setFollowing(isFollow);
+            }
 
             // Load "next" recommendation
             const nextQuery = query(collection(db, 'videos'), orderBy('createdAt', 'desc'), limit(5));
@@ -123,17 +126,10 @@ export default function VideoDetailScreen() {
             const nextVideos = nextSnap.docs
                 .map((d: any) => ({ ...d.data(), id: d.id })) as Video[];
             const recommendation = nextVideos.find(v => v.id !== id);
-            if (recommendation) {
-                setNextVideo(recommendation);
-            } else {
-                setNextVideo(MOCK_VIDEOS.find((v) => v.id !== id) || MOCK_VIDEOS[1]);
-            }
+            setNextVideo(recommendation || null);
         } catch (error) {
             console.log('Failed to load video from Firestore:', error);
-            const mockVideo = MOCK_VIDEOS.find((v) => v.id === id) || MOCK_VIDEOS[0];
-            setVideo(mockVideo);
-            setVoteCount(mockVideo.voteCount || 0);
-            setNextVideo(MOCK_VIDEOS.find((v) => v.id !== id) || MOCK_VIDEOS[1]);
+            setVideo(null);
         } finally {
             setLoading(false);
         }
@@ -191,7 +187,6 @@ export default function VideoDetailScreen() {
             setComment('');
         } catch (e) {
             console.log('Comment failed:', e);
-            // Add locally anyway for UX
             const fakeComment: CommentType = {
                 id: Date.now().toString(),
                 userId: user.id,
@@ -203,6 +198,17 @@ export default function VideoDetailScreen() {
             };
             setComments(prev => [fakeComment, ...prev]);
             setComment('');
+        }
+    };
+
+    const handleFollow = async () => {
+        if (!isAuthenticated || !user || !video?.creatorId) return;
+        if (following) {
+            setFollowing(false);
+            await unfollowUser(user.id, video.creatorId);
+        } else {
+            setFollowing(true);
+            await followUser(user.id, video.creatorId);
         }
     };
 
@@ -225,7 +231,6 @@ export default function VideoDetailScreen() {
         } catch { }
     };
 
-    // Extract videoId for embed
     const getYouTubeVideoId = (v: Video): string => {
         if (v.youtubeUrl) {
             const match = v.youtubeUrl.match(
@@ -241,7 +246,7 @@ export default function VideoDetailScreen() {
         return '';
     };
 
-    if (loading || !video) {
+    if (loading) {
         return (
             <View style={[styles.screen, { paddingTop: insets.top, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }]}>
                 <ActivityIndicator size="large" color={Colors.primary} />
@@ -249,10 +254,21 @@ export default function VideoDetailScreen() {
         );
     }
 
+    if (!video) {
+        return (
+            <View style={[styles.screen, { paddingTop: insets.top, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }]}>
+                <Ionicons name="videocam-off-outline" size={48} color={colors.textMuted} />
+                <Text style={[styles.notFoundText, { color: colors.textSecondary }]}>Video not found</Text>
+                <Pressable onPress={() => router.back()}>
+                    <Text style={[styles.goBackText, { color: Colors.primary }]}>Go Back</Text>
+                </Pressable>
+            </View>
+        );
+    }
+
     const ytVideoId = getYouTubeVideoId(video);
     const gemScore = computeGemScore(video);
 
-    /* Custom HTML player — simple iframe embed (most reliable on mobile) */
     const embedUrl = ytVideoId
         ? `https://www.youtube.com/embed/${ytVideoId}?playsinline=1&modestbranding=1&rel=0&showinfo=0&iv_load_policy=3&cc_load_policy=0&fs=1&controls=1`
         : '';
@@ -265,11 +281,7 @@ export default function VideoDetailScreen() {
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
-    iframe {
-      width: 100%;
-      height: 100%;
-      border: none;
-    }
+    iframe { width: 100%; height: 100%; border: none; }
   </style>
 </head>
 <body>
@@ -368,22 +380,22 @@ export default function VideoDetailScreen() {
                             <Text style={[styles.creatorSubs, { color: colors.textSecondary }]}>{(video.subscriberCount || 0).toLocaleString()} subscribers</Text>
                         </View>
                         <Pressable
-                            style={[styles.followBtn, isFollowing && styles.followBtnActive]}
-                            onPress={() => setIsFollowing(!isFollowing)}
+                            style={[styles.followBtn, following && styles.followBtnActive]}
+                            onPress={handleFollow}
                         >
-                            <Text style={[styles.followText, isFollowing && styles.followTextActive]}>
-                                {isFollowing ? 'Following' : 'Follow'}
+                            <Text style={[styles.followText, following && styles.followTextActive]}>
+                                {following ? 'Following' : 'Follow'}
                             </Text>
                         </Pressable>
                     </View>
 
-                    {/* Action Row — Upvote, Comment, Save, Report */}
+                    {/* Action Row */}
                     <View style={[styles.actionRow, { borderBottomColor: borderColor }]}>
                         <AnimatedPressable style={[styles.voteAction, voted && styles.voteActionActive, voteAnimStyle]} onPress={handleVote}>
                             <Ionicons name={voted ? 'chevron-up-circle' : 'chevron-up-circle-outline'} size={24} color={voted ? Colors.white : Colors.primary} />
                             <Text style={[styles.voteActionText, voted && styles.voteActionTextActive]}>{voteCount}</Text>
                         </AnimatedPressable>
-                        <Pressable style={styles.actionBtn} onPress={() => {/* scroll to comments */ }}>
+                        <Pressable style={styles.actionBtn}>
                             <Ionicons name="chatbubble-outline" size={20} color={colors.textSecondary} />
                             <Text style={[styles.actionBtnText, { color: colors.textSecondary }]}>{comments.length}</Text>
                         </Pressable>
@@ -396,13 +408,6 @@ export default function VideoDetailScreen() {
                             <Text style={[styles.actionBtnText, { color: colors.textSecondary }]}>Report</Text>
                         </Pressable>
                     </View>
-
-                    {/* Description */}
-                    {video.description ? (
-                        <View style={[styles.descriptionCard, { backgroundColor: cardBg, borderColor }]}>
-                            <Text style={[styles.descriptionText, { color: colors.textSecondary }]}>{video.description}</Text>
-                        </View>
-                    ) : null}
 
                     {/* Comments */}
                     <Text style={[styles.sectionTitle, { color: colors.text }]}>💬 Comments ({comments.length})</Text>
@@ -427,24 +432,28 @@ export default function VideoDetailScreen() {
                         </Pressable>
                     </View>
 
-                    {comments.map((c) => (
-                        <View key={c.id} style={styles.commentItem}>
-                            <Image source={{ uri: c.userAvatar }} style={styles.commentAvatar} />
-                            <View style={styles.commentContent}>
-                                <View style={styles.commentHeader}>
-                                    <Text style={[styles.commentUser, { color: colors.text }]}>{c.userName}</Text>
-                                    <Text style={[styles.commentDate, { color: colors.textMuted }]}>
-                                        {new Date(c.createdAt).toLocaleDateString()}
-                                    </Text>
-                                </View>
-                                <Text style={[styles.commentText, { color: colors.textSecondary }]}>{c.text}</Text>
-                                <View style={styles.commentLike}>
-                                    <Ionicons name="heart-outline" size={14} color={colors.textMuted} />
-                                    <Text style={[styles.commentLikeText, { color: colors.textMuted }]}>{c.likes}</Text>
+                    {comments.length === 0 ? (
+                        <Text style={[styles.emptyComments, { color: colors.textMuted }]}>No comments yet. Be the first!</Text>
+                    ) : (
+                        comments.map((c) => (
+                            <View key={c.id} style={styles.commentItem}>
+                                <Image source={{ uri: c.userAvatar }} style={styles.commentAvatar} />
+                                <View style={styles.commentContent}>
+                                    <View style={styles.commentHeader}>
+                                        <Text style={[styles.commentUser, { color: colors.text }]}>{c.userName}</Text>
+                                        <Text style={[styles.commentDate, { color: colors.textMuted }]}>
+                                            {new Date(c.createdAt).toLocaleDateString()}
+                                        </Text>
+                                    </View>
+                                    <Text style={[styles.commentText, { color: colors.textSecondary }]}>{c.text}</Text>
+                                    <View style={styles.commentLike}>
+                                        <Ionicons name="heart-outline" size={14} color={colors.textMuted} />
+                                        <Text style={[styles.commentLikeText, { color: colors.textMuted }]}>{c.likes}</Text>
+                                    </View>
                                 </View>
                             </View>
-                        </View>
-                    ))}
+                        ))
+                    )}
 
                     {/* Next Recommendation */}
                     {nextVideo && (
@@ -465,264 +474,66 @@ export default function VideoDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-    screen: {
-        flex: 1,
-        backgroundColor: Colors.backgroundDark,
-    },
+    screen: { flex: 1 },
     header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: Spacing.sm,
-        paddingVertical: Spacing.sm,
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+        paddingHorizontal: Spacing.sm, paddingVertical: Spacing.sm,
     },
-    backBtn: {
-        width: 40,
-        height: 40,
-        borderRadius: Radius.full,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    headerTitle: {
-        ...Typography.cardTitle,
-        color: Colors.textPrimaryDark,
-        fontWeight: '700',
-    },
-    playerContainer: {
-        width: SCREEN_WIDTH,
-        height: PLAYER_HEIGHT,
-        backgroundColor: Colors.black,
-        position: 'relative',
-    },
-    webview: {
-        width: '100%',
-        height: '100%',
-        backgroundColor: Colors.black,
-    },
-    playerThumb: {
-        width: '100%',
-        height: PLAYER_HEIGHT,
-    },
-    playerOverlay: {
-        ...StyleSheet.absoluteFillObject,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
+    backBtn: { width: 40, height: 40, borderRadius: Radius.full, justifyContent: 'center', alignItems: 'center' },
+    headerTitle: { fontSize: 17, fontWeight: '700' },
+    playerContainer: { width: SCREEN_WIDTH, height: PLAYER_HEIGHT, backgroundColor: Colors.black, position: 'relative' },
+    webview: { width: '100%', height: '100%', backgroundColor: Colors.black },
+    playerThumb: { width: '100%', height: PLAYER_HEIGHT },
+    playerOverlay: { ...StyleSheet.absoluteFillObject, justifyContent: 'center', alignItems: 'center' },
     bigPlayBtn: {
-        width: 64,
-        height: 64,
-        borderRadius: 32,
-        backgroundColor: 'rgba(16, 185, 129, 0.85)',
-        justifyContent: 'center',
-        alignItems: 'center',
+        width: 64, height: 64, borderRadius: 32,
+        backgroundColor: 'rgba(16, 185, 129, 0.85)', justifyContent: 'center', alignItems: 'center',
     },
-    content: {
-        paddingHorizontal: Layout.screenPadding,
-        paddingTop: Spacing.md,
-    },
-    titleRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'flex-start',
-        gap: Spacing.sm,
-    },
-    videoTitle: {
-        ...Typography.screenTitle,
-        color: Colors.textPrimaryDark,
-        fontSize: 20,
-        lineHeight: 28,
-        flex: 1,
-    },
-    gemScoreChip: {
-        borderRadius: Radius.full,
-        overflow: 'hidden',
-    },
-    gemScoreGradient: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: Radius.full,
-    },
-    gemScoreText: {
-        fontSize: 16,
-        fontWeight: '800',
-        color: Colors.white,
-    },
-    viewsText: {
-        fontSize: 13,
-        color: Colors.textMutedDark,
-        marginTop: 4,
-        marginBottom: Spacing.sm,
-    },
-    creatorRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: Spacing.sm,
-        paddingBottom: Spacing.md,
-        borderBottomWidth: 1,
-        borderBottomColor: Colors.borderDark,
-    },
-    creatorAvatar: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        borderWidth: 2,
-        borderColor: Colors.primary,
-        backgroundColor: Colors.surfaceDark,
-    },
-    creatorInfo: {
-        flex: 1,
-    },
-    creatorName: {
-        ...Typography.cardTitle,
-        color: Colors.textPrimaryDark,
-    },
-    creatorSubs: {
-        ...Typography.caption,
-        color: Colors.textSecondaryDark,
-    },
-    followBtn: {
-        paddingHorizontal: Spacing.md,
-        paddingVertical: Spacing.sm,
-        borderRadius: Radius.full,
-        borderWidth: 1.5,
-        borderColor: Colors.primary,
-    },
-    followBtnActive: {
-        backgroundColor: Colors.primary,
-    },
-    followText: {
-        ...Typography.button,
-        color: Colors.primary,
-        fontSize: 13,
-    },
-    followTextActive: {
-        color: Colors.white,
-    },
-    actionRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-around',
-        paddingVertical: Spacing.md,
-        borderBottomWidth: 1,
-        borderBottomColor: Colors.borderDark,
-    },
+    content: { paddingHorizontal: Layout.screenPadding, paddingTop: Spacing.md },
+    titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: Spacing.sm },
+    videoTitle: { fontSize: 20, fontWeight: '800', lineHeight: 28, flex: 1 },
+    gemScoreChip: { borderRadius: Radius.full, overflow: 'hidden' },
+    gemScoreGradient: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 6, borderRadius: Radius.full },
+    gemScoreText: { fontSize: 16, fontWeight: '800', color: Colors.white },
+    viewsText: { fontSize: 13, marginTop: 4, marginBottom: Spacing.sm },
+    creatorRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingBottom: Spacing.md, borderBottomWidth: 1 },
+    creatorAvatar: { width: 44, height: 44, borderRadius: 22, borderWidth: 2, borderColor: Colors.primary },
+    creatorInfo: { flex: 1 },
+    creatorName: { fontSize: 16, fontWeight: '700' },
+    creatorSubs: { fontSize: 13 },
+    followBtn: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: Radius.full, borderWidth: 1.5, borderColor: Colors.primary },
+    followBtnActive: { backgroundColor: Colors.primary },
+    followText: { fontSize: 13, fontWeight: '700', color: Colors.primary },
+    followTextActive: { color: Colors.white },
+    actionRow: { flexDirection: 'row', justifyContent: 'space-around', paddingVertical: Spacing.md, borderBottomWidth: 1 },
     voteAction: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-        paddingHorizontal: Spacing.md,
-        paddingVertical: Spacing.sm,
-        borderRadius: Radius.full,
-        borderWidth: 1.5,
-        borderColor: Colors.primary,
+        flexDirection: 'row', alignItems: 'center', gap: 6,
+        paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm,
+        borderRadius: Radius.full, borderWidth: 1.5, borderColor: Colors.primary,
     },
-    voteActionActive: {
-        backgroundColor: Colors.primary,
-        borderColor: Colors.primary,
-    },
-    voteActionText: {
-        ...Typography.button,
-        color: Colors.primary,
-    },
-    voteActionTextActive: {
-        color: Colors.white,
-    },
-    actionBtn: {
-        alignItems: 'center',
-        gap: 4,
-    },
-    actionBtnText: {
-        ...Typography.caption,
-        color: Colors.textSecondaryDark,
-        fontSize: 10,
-    },
-    descriptionCard: {
-        backgroundColor: Colors.cardDark,
-        borderRadius: Radius.md,
-        padding: Spacing.md,
-        marginTop: Spacing.md,
-        borderWidth: 1,
-        borderColor: Colors.borderDark,
-    },
-    descriptionText: {
-        ...Typography.body,
-        color: Colors.textSecondaryDark,
-        lineHeight: 20,
-    },
-    sectionTitle: {
-        ...Typography.sectionTitle,
-        color: Colors.textPrimaryDark,
-        marginTop: Spacing.lg,
-        marginBottom: Spacing.sm,
-    },
+    voteActionActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+    voteActionText: { fontSize: 14, fontWeight: '700', color: Colors.primary },
+    voteActionTextActive: { color: Colors.white },
+    actionBtn: { alignItems: 'center', gap: 4 },
+    actionBtnText: { fontSize: 10 },
+    sectionTitle: { fontSize: 17, fontWeight: '700', marginTop: Spacing.lg, marginBottom: Spacing.sm },
     commentInput: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: Colors.cardDark,
-        borderRadius: Radius.md,
-        paddingHorizontal: Spacing.sm,
-        marginBottom: Spacing.md,
-        borderWidth: 1,
-        borderColor: Colors.borderDark,
-        gap: 8,
+        flexDirection: 'row', alignItems: 'center', borderRadius: Radius.md,
+        paddingHorizontal: Spacing.sm, marginBottom: Spacing.md, borderWidth: 1, gap: 8,
     },
-    commentAvatarSmall: {
-        width: 28,
-        height: 28,
-        borderRadius: 14,
-    },
-    commentTextInput: {
-        flex: 1,
-        ...Typography.body,
-        color: Colors.textPrimaryDark,
-        height: Layout.inputHeight,
-    },
-    commentSendBtn: {
-        padding: Spacing.sm,
-    },
-    commentItem: {
-        flexDirection: 'row',
-        gap: Spacing.sm,
-        marginBottom: Spacing.md,
-    },
-    commentAvatar: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        backgroundColor: Colors.surfaceDark,
-    },
-    commentContent: {
-        flex: 1,
-    },
-    commentHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-    },
-    commentUser: {
-        ...Typography.body,
-        color: Colors.textPrimaryDark,
-        fontWeight: '600',
-        fontSize: 13,
-    },
-    commentDate: {
-        ...Typography.caption,
-        color: Colors.textMutedDark,
-    },
-    commentText: {
-        ...Typography.body,
-        color: Colors.textSecondaryDark,
-        marginTop: 2,
-    },
-    commentLike: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-        marginTop: Spacing.xs,
-    },
-    commentLikeText: {
-        ...Typography.caption,
-        color: Colors.textMutedDark,
-    },
+    commentAvatarSmall: { width: 28, height: 28, borderRadius: 14 },
+    commentTextInput: { flex: 1, fontSize: 14, height: Layout.inputHeight },
+    commentSendBtn: { padding: Spacing.sm },
+    emptyComments: { fontSize: 14, textAlign: 'center', paddingVertical: 20 },
+    commentItem: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.md },
+    commentAvatar: { width: 32, height: 32, borderRadius: 16 },
+    commentContent: { flex: 1 },
+    commentHeader: { flexDirection: 'row', justifyContent: 'space-between' },
+    commentUser: { fontSize: 13, fontWeight: '600' },
+    commentDate: { fontSize: 11 },
+    commentText: { fontSize: 14, marginTop: 2 },
+    commentLike: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: Spacing.xs },
+    commentLikeText: { fontSize: 11 },
+    notFoundText: { fontSize: 16, fontWeight: '600', marginTop: 12 },
+    goBackText: { fontSize: 14, fontWeight: '600', marginTop: 8 },
 });

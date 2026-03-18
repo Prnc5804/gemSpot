@@ -1,26 +1,26 @@
-import React, { useState, useCallback, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  Image,
-  Pressable,
-  Dimensions,
-  RefreshControl,
-  TextInput,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { Colors, Spacing, Radius, Typography, Shadows, Layout } from '@/constants/theme';
-import { CATEGORIES } from '@/constants/types';
-import { MOCK_VIDEOS } from '@/constants/mock-data';
 import { CategoryChip } from '@/components/category-chip';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Colors, Layout, Radius, Spacing } from '@/constants/theme';
+import type { Video } from '@/constants/types';
+import { CATEGORIES } from '@/constants/types';
 import { useTheme } from '@/contexts/theme-context';
 import { db } from '@/services/firebase';
-import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
-import type { Video } from '@/constants/types';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { collection, getDocs, limit, orderBy, query } from 'firebase/firestore';
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Dimensions,
+  Image,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -38,21 +38,22 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { isDark, colors } = useTheme();
   const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [allVideos, setAllVideos] = useState<Video[]>(MOCK_VIDEOS);
+  const [allVideos, setAllVideos] = useState<Video[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
 
   const fetchData = async () => {
     try {
       const videosQuery = query(collection(db, 'videos'), orderBy('createdAt', 'desc'), limit(30));
       const videosSnap = await getDocs(videosQuery);
-      const firestoreVideos = videosSnap.docs.map((d: any) => ({ ...d.data(), id: d.id })) as Video[];
-      const combinedVideos = [...firestoreVideos, ...MOCK_VIDEOS.filter(
-        mv => !firestoreVideos.some(fv => fv.id === mv.id)
-      )];
-      setAllVideos(combinedVideos);
+      const videos = videosSnap.docs.map((d: any) => ({ ...d.data(), id: d.id })) as Video[];
+      setAllVideos(videos);
     } catch (error) {
-      console.log('Firestore fetch failed, using mock data:', error);
+      console.log('Firestore fetch failed:', error);
+      setAllVideos([]);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -134,7 +135,12 @@ export default function HomeScreen() {
           />
         }
       >
-        {filteredVideos.length === 0 ? (
+        {loading ? (
+          <View style={styles.emptyState}>
+            <ActivityIndicator size="large" color={Colors.primary} />
+            <Text style={[styles.emptyHint, { color: colors.textMuted }]}>Loading videos...</Text>
+          </View>
+        ) : filteredVideos.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name="videocam-off-outline" size={48} color={colors.textMuted} />
             <Text style={[styles.emptyTitle, { color: colors.textSecondary }]}>No videos found</Text>

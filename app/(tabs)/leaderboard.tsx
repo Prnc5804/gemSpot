@@ -1,177 +1,260 @@
 /**
- * Leaderboard Screen — Podium top 3 + ranked list, Weekly/Monthly toggle
+ * Leaderboard Screen — Top Creators & Top Videos from Firestore
+ * No mock data — everything from ranking-service
  */
 
-import React, { useState } from 'react';
-import {
-    View,
-    Text,
-    StyleSheet,
-    ScrollView,
-    Pressable,
-    Image,
-    Dimensions,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Colors, Spacing, Radius, Typography, Layout, Shadows } from '@/constants/theme';
-import { MOCK_CREATORS } from '@/constants/mock-data';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Colors, Layout, Radius, Shadows, Spacing } from '@/constants/theme';
+import type { Video } from '@/constants/types';
 import { useTheme } from '@/contexts/theme-context';
+import { getTopCreators, getTopVideos, type RankingPeriod } from '@/services/ranking-service';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+    ActivityIndicator,
+    Dimensions,
+    Image,
+    Pressable,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-type Tab = 'creators' | 'videos';
-type Period = 'weekly' | 'monthly';
+type ContentTab = 'creators' | 'videos';
+
+interface RankedCreator {
+    id: string;
+    name: string;
+    channelId?: string;
+    profilePicture?: string;
+    totalVotes: number;
+    videosCount: number;
+    subscriberCount: number;
+    rank: number;
+}
 
 export default function LeaderboardScreen() {
+    const router = useRouter();
     const insets = useSafeAreaInsets();
     const { isDark, colors } = useTheme();
-    const [activeTab, setActiveTab] = useState<Tab>('creators');
-    const [period, setPeriod] = useState<Period>('weekly');
 
-    const topThree = MOCK_CREATORS.slice(0, 3);
-    const rest = MOCK_CREATORS.slice(3);
+    const [period, setPeriod] = useState<RankingPeriod>('weekly');
+    const [tab, setTab] = useState<ContentTab>('creators');
+    const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
+    const [creators, setCreators] = useState<RankedCreator[]>([]);
+    const [videos, setVideos] = useState<Video[]>([]);
 
-    // Podium order: [#2, #1, #3]
-    const second = topThree[1];
-    const first = topThree[0];
-    const third = topThree[2];
+    const fetchData = useCallback(async () => {
+        setLoading(true);
+        try {
+            if (tab === 'creators') {
+                const data = await getTopCreators(period, 20);
+                setCreators(data as any as RankedCreator[]);
+            } else {
+                const data = await getTopVideos(period, 20);
+                setVideos(data);
+            }
+        } catch (error) {
+            console.log('Leaderboard fetch error:', error);
+        } finally {
+            setLoading(false);
+        }
+    }, [tab, period]);
 
-    const cardBg = isDark ? colors.cardElevated : Colors.white;
-    const borderColor = isDark ? colors.border : 'rgba(0,0,0,0.04)';
+    useEffect(() => { fetchData(); }, [fetchData]);
+
+    const onRefresh = useCallback(async () => {
+        setRefreshing(true);
+        await fetchData();
+        setRefreshing(false);
+    }, [fetchData]);
+
+    const topThree = creators.slice(0, 3);
+    const rest = creators.slice(3);
+
+    const podiumOrder = [topThree[1], topThree[0], topThree[2]];
+    const podiumHeights = [90, 120, 75];
+    const podiumIcons = ['🥈', '🥇', '🥉'];
+    const podiumRanks = [2, 1, 3];
+
+    const formatSubs = (c: number): string => {
+        if (c >= 1000) return `${(c / 1000).toFixed(1)}k`;
+        return String(c || 0);
+    };
 
     return (
-        <View style={[s.screen, { paddingTop: insets.top, backgroundColor: colors.background }]}>
-
-            {/* ═══ HEADER ═══ */}
-            <View style={s.header}>
-                <View style={s.headerLeft}>
-                    <Text style={s.headerEmoji}>🏆</Text>
-                    <Text style={[s.headerTitle, { color: colors.text }]}>Leaderboard</Text>
+        <View style={[styles.screen, { paddingTop: insets.top, backgroundColor: colors.background }]}>
+            {/* Header */}
+            <View style={styles.headerRow}>
+                <View style={styles.headerLeft}>
+                    <Ionicons name="trophy" size={28} color={Colors.accent} />
+                    <Text style={[styles.headerTitle, { color: colors.text }]}>Rankings</Text>
                 </View>
-                <Pressable
-                    style={[s.periodBadge, { backgroundColor: cardBg, borderColor }]}
-                    onPress={() => setPeriod(period === 'weekly' ? 'monthly' : 'weekly')}
-                >
-                    <Text style={[s.periodBadgeText, { color: colors.textSecondary }]}>
-                        {period === 'weekly' ? 'Weekly' : 'Monthly'}
-                    </Text>
-                </Pressable>
             </View>
 
-            {/* ═══ TAB PILLS ═══ */}
-            <View style={s.tabRow}>
-                <Pressable
-                    style={[s.tab, { backgroundColor: cardBg, borderColor }, activeTab === 'creators' && s.tabActive]}
-                    onPress={() => setActiveTab('creators')}
-                >
-                    <Ionicons name="trophy" size={14} color={activeTab === 'creators' ? Colors.white : colors.textMuted} />
-                    <Text style={[s.tabText, { color: colors.textMuted }, activeTab === 'creators' && s.tabTextActive]}>Top Creators</Text>
-                </Pressable>
-                <Pressable
-                    style={[s.tab, { backgroundColor: cardBg, borderColor }, activeTab === 'videos' && s.tabActive]}
-                    onPress={() => setActiveTab('videos')}
-                >
-                    <Ionicons name="play-circle" size={14} color={activeTab === 'videos' ? Colors.white : colors.textMuted} />
-                    <Text style={[s.tabText, { color: colors.textMuted }, activeTab === 'videos' && s.tabTextActive]}>Top Videos</Text>
-                </Pressable>
-            </View>
-
-            {/* ═══ PERIOD TOGGLE ═══ */}
-            <View style={s.periodRow}>
-                <Pressable
-                    style={[s.periodPill, { backgroundColor: isDark ? colors.card : Colors.cardLightElevated }, period === 'weekly' && [s.periodPillActive, { backgroundColor: cardBg }]]}
-                    onPress={() => setPeriod('weekly')}
-                >
-                    <Ionicons name="calendar-outline" size={12} color={period === 'weekly' ? Colors.primary : colors.textMuted} />
-                    <Text style={[s.periodPillText, { color: colors.textMuted }, period === 'weekly' && s.periodPillTextActive]}>Weekly</Text>
-                </Pressable>
-                <Pressable
-                    style={[s.periodPill, { backgroundColor: isDark ? colors.card : Colors.cardLightElevated }, period === 'monthly' && [s.periodPillActive, { backgroundColor: cardBg }]]}
-                    onPress={() => setPeriod('monthly')}
-                >
-                    <Ionicons name="calendar-outline" size={12} color={period === 'monthly' ? Colors.primary : colors.textMuted} />
-                    <Text style={[s.periodPillText, { color: colors.textMuted }, period === 'monthly' && s.periodPillTextActive]}>Monthly</Text>
-                </Pressable>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scrollContent}>
-
-                {/* ═══ PODIUM ═══ */}
-                <View style={s.podium}>
-                    {/* #2 — Left */}
-                    <View style={[s.podiumCol, s.podiumSide]}>
-                        <View style={s.avatarWrap2}>
-                            <Image source={{ uri: second?.avatar }} style={s.avatar2} />
-                        </View>
-                        <Text style={[s.podiumName, { color: colors.textSecondary }]} numberOfLines={1}>{second?.name?.slice(0, 10)}...</Text>
-                        <Text style={[s.podiumVotes, { color: colors.textMuted }]}>{second?.totalVotes} votes</Text>
-                        {second?.growthPercent > 0 && (
-                            <View style={s.growthBadge}>
-                                <Ionicons name="trending-up" size={10} color={Colors.primary} />
-                                <Text style={s.growthText}>{second.growthPercent}%</Text>
-                            </View>
-                        )}
-                    </View>
-
-                    {/* #1 — Center (biggest) */}
-                    <View style={[s.podiumCol, s.podiumCenter]}>
-                        <Text style={s.crownEmoji}>👑</Text>
-                        <View style={s.avatarWrap1}>
-                            <Image source={{ uri: first?.avatar }} style={s.avatar1} />
-                        </View>
-                        <Text style={[s.podiumNameFirst, { color: colors.text }]} numberOfLines={1}>{first?.name}</Text>
-                        <View style={s.votesHighlight}>
-                            <Text style={s.votesHighlightText}>{first?.totalVotes} votes</Text>
-                        </View>
-                        {first?.growthPercent > 0 && (
-                            <View style={[s.growthBadge, s.growthBadgeGreen]}>
-                                <Ionicons name="trending-up" size={10} color={Colors.white} />
-                                <Text style={[s.growthText, { color: Colors.white }]}>{first.growthPercent}%</Text>
-                            </View>
-                        )}
-                    </View>
-
-                    {/* #3 — Right */}
-                    <View style={[s.podiumCol, s.podiumSide]}>
-                        <View style={s.avatarWrap3}>
-                            <Image source={{ uri: third?.avatar }} style={s.avatar3} />
-                        </View>
-                        <Text style={[s.podiumName, { color: colors.textSecondary }]} numberOfLines={1}>{third?.name?.slice(0, 10)}</Text>
-                        <Text style={[s.podiumVotes, { color: colors.textMuted }]}>{third?.totalVotes} votes</Text>
-                        {third?.growthPercent > 0 && (
-                            <View style={s.growthBadge}>
-                                <Ionicons name="trending-up" size={10} color={Colors.primary} />
-                                <Text style={s.growthText}>{third.growthPercent}%</Text>
-                            </View>
-                        )}
-                    </View>
-                </View>
-
-                {/* ═══ RANKED LIST (#4+) ═══ */}
-                {rest.map((creator, index) => (
-                    <View key={creator.id} style={[s.rankCard, { backgroundColor: cardBg, borderColor }]}>
-                        <Text style={[s.rankNumber, { color: colors.textMuted }]}>#{index + 4}</Text>
-                        <Image source={{ uri: creator.avatar }} style={[s.rankAvatar, { borderColor }]} />
-                        <View style={s.rankInfo}>
-                            <Text style={[s.rankName, { color: colors.text }]} numberOfLines={1}>{creator.name}</Text>
-                            <Text style={[s.rankSubs, { color: colors.textSecondary }]}>{creator.subscriberCount} subs</Text>
-                        </View>
-                        <View style={s.rankRight}>
-                            <View style={s.rankVoteBadge}>
-                                <Ionicons name="chevron-up" size={14} color={Colors.primary} />
-                                <Text style={s.rankVoteText}>{creator.totalVotes}</Text>
-                            </View>
-                            {creator.growthPercent > 0 && (
-                                <View style={s.rankGrowth}>
-                                    <Ionicons name="trending-up" size={10} color={Colors.primary} />
-                                    <Text style={s.rankGrowthText}>{creator.growthPercent}%</Text>
-                                </View>
-                            )}
-                        </View>
-                    </View>
+            {/* Toggles */}
+            <View style={styles.toggleRow}>
+                {(['creators', 'videos'] as ContentTab[]).map((t) => (
+                    <Pressable
+                        key={t}
+                        style={[styles.toggleBtn, tab === t && styles.toggleActive]}
+                        onPress={() => setTab(t)}
+                    >
+                        <Text style={[
+                            styles.toggleText, { color: colors.textMuted },
+                            tab === t && styles.toggleTextActive,
+                        ]}>
+                            {t === 'creators' ? '👨‍🎤 Creators' : '🎬 Videos'}
+                        </Text>
+                    </Pressable>
                 ))}
+
+                <View style={styles.divider} />
+
+                {(['weekly', 'monthly'] as RankingPeriod[]).map((p) => (
+                    <Pressable
+                        key={p}
+                        style={[
+                            styles.periodBtn,
+                            { borderColor: isDark ? colors.border : 'rgba(0,0,0,0.08)' },
+                            period === p && styles.periodActive,
+                        ]}
+                        onPress={() => setPeriod(p)}
+                    >
+                        <Text style={[
+                            styles.periodText, { color: colors.textMuted },
+                            period === p && styles.periodTextActive,
+                        ]}>
+                            {p === 'weekly' ? 'Week' : 'Month'}
+                        </Text>
+                    </Pressable>
+                ))}
+            </View>
+
+            <ScrollView
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.content}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={onRefresh}
+                        tintColor={Colors.primary}
+                        colors={[Colors.primary]}
+                    />
+                }
+            >
+                {loading ? (
+                    <View style={styles.loadingContainer}>
+                        <ActivityIndicator size="large" color={Colors.primary} />
+                        <Text style={[styles.emptyText, { color: colors.textMuted }]}>Loading rankings...</Text>
+                    </View>
+                ) : tab === 'creators' ? (
+                    <>
+                        {/* ═══ PODIUM ═══ */}
+                        {topThree.length >= 1 && (
+                            <View style={styles.podiumContainer}>
+                                {podiumOrder.map((creator, i) => {
+                                    if (!creator) return <View key={i} style={styles.podiumSlot} />;
+                                    return (
+                                        <Pressable
+                                            key={creator.id}
+                                            style={styles.podiumSlot}
+                                            onPress={() => router.push(`/creator/${creator.id}` as any)}
+                                        >
+                                            <Text style={styles.podiumMedal}>{podiumIcons[i]}</Text>
+                                            <Image
+                                                source={{ uri: creator.profilePicture || `https://ui-avatars.com/api/?name=${encodeURIComponent(creator.name)}&background=10B981&color=fff` }}
+                                                style={[
+                                                    styles.podiumAvatar,
+                                                    podiumRanks[i] === 1 && styles.podiumAvatarFirst,
+                                                ]}
+                                            />
+                                            <Text style={[styles.podiumName, { color: colors.text }]} numberOfLines={1}>{creator.name}</Text>
+                                            <Text style={[styles.podiumStat, { color: colors.textMuted }]}>{creator.totalVotes || 0} votes</Text>
+                                            <View style={[styles.podiumBar, {
+                                                height: podiumHeights[i],
+                                                backgroundColor: podiumRanks[i] === 1 ? Colors.accent : Colors.primary + '40',
+                                            }]}>
+                                                <Text style={styles.podiumRank}>#{podiumRanks[i]}</Text>
+                                            </View>
+                                        </Pressable>
+                                    );
+                                })}
+                            </View>
+                        )}
+
+                        {/* ═══ REST ═══ */}
+                        {rest.map((creator, i) => (
+                            <Pressable
+                                key={creator.id}
+                                style={[styles.rankRow, { backgroundColor: isDark ? colors.cardElevated : Colors.white }]}
+                                onPress={() => router.push(`/creator/${creator.id}` as any)}
+                            >
+                                <Text style={[styles.rankNum, { color: colors.textMuted }]}>{i + 4}</Text>
+                                <Image
+                                    source={{ uri: creator.profilePicture || `https://ui-avatars.com/api/?name=${encodeURIComponent(creator.name)}&background=10B981&color=fff` }}
+                                    style={styles.rankAvatar}
+                                />
+                                <View style={styles.rankInfo}>
+                                    <Text style={[styles.rankName, { color: colors.text }]}>{creator.name}</Text>
+                                    <Text style={[styles.rankMeta, { color: colors.textMuted }]}>
+                                        {formatSubs(creator.subscriberCount)} subs · {creator.videosCount || 0} videos
+                                    </Text>
+                                </View>
+                                <View style={styles.voteBadge}>
+                                    <Ionicons name="diamond" size={14} color={Colors.primary} />
+                                    <Text style={styles.voteCount}>{creator.totalVotes || 0}</Text>
+                                </View>
+                            </Pressable>
+                        ))}
+
+                        {creators.length === 0 && (
+                            <View style={styles.emptyContainer}>
+                                <Ionicons name="trophy-outline" size={48} color={colors.textMuted} />
+                                <Text style={[styles.emptyTitle, { color: colors.textSecondary }]}>No creators ranked yet</Text>
+                                <Text style={[styles.emptyText, { color: colors.textMuted }]}>Submit videos to see creators here</Text>
+                            </View>
+                        )}
+                    </>
+                ) : (
+                    <>
+                        {/* ═══ TOP VIDEOS ═══ */}
+                        {videos.length === 0 ? (
+                            <View style={styles.emptyContainer}>
+                                <Ionicons name="videocam-off-outline" size={48} color={colors.textMuted} />
+                                <Text style={[styles.emptyTitle, { color: colors.textSecondary }]}>No videos ranked yet</Text>
+                                <Text style={[styles.emptyText, { color: colors.textMuted }]}>Submit videos to see them here</Text>
+                            </View>
+                        ) : (
+                            videos.map((video, i) => (
+                                <Pressable
+                                    key={video.id}
+                                    style={[styles.videoRow, { backgroundColor: isDark ? colors.cardElevated : Colors.white }]}
+                                    onPress={() => router.push(`/video/${video.id}` as any)}
+                                >
+                                    <Text style={[styles.videoRank, {
+                                        color: i < 3 ? Colors.accent : colors.textMuted,
+                                    }]}>#{i + 1}</Text>
+                                    <Image source={{ uri: video.thumbnailUrl }} style={styles.videoThumb} />
+                                    <View style={styles.videoInfo}>
+                                        <Text style={[styles.videoTitle, { color: colors.text }]} numberOfLines={2}>{video.title}</Text>
+                                        <Text style={[styles.videoMeta, { color: colors.textMuted }]}>{video.creatorName}</Text>
+                                    </View>
+                                    <View style={styles.voteBadge}>
+                                        <Ionicons name="diamond" size={14} color={Colors.primary} />
+                                        <Text style={styles.voteCount}>{video.voteCount || 0}</Text>
+                                    </View>
+                                </Pressable>
+                            ))
+                        )}
+                    </>
+                )}
 
                 <View style={{ height: Layout.tabBarHeight + Spacing.xl }} />
             </ScrollView>
@@ -179,324 +262,93 @@ export default function LeaderboardScreen() {
     );
 }
 
-// ═══════════════════════════════════════════════
-// STYLES
-// ═══════════════════════════════════════════════
-const s = StyleSheet.create({
-    screen: {
-        flex: 1,
-        backgroundColor: Colors.backgroundLight,
+const styles = StyleSheet.create({
+    screen: { flex: 1 },
+    headerRow: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+        paddingHorizontal: Layout.screenPadding, paddingVertical: Spacing.sm,
     },
+    headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    headerTitle: { fontSize: 24, fontWeight: '800' },
 
-    // ─── Header ───
-    header: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: Layout.screenPadding,
-        paddingVertical: Spacing.sm,
+    toggleRow: {
+        flexDirection: 'row', alignItems: 'center',
+        paddingHorizontal: Layout.screenPadding, paddingBottom: Spacing.sm, gap: 8,
     },
-    headerLeft: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-    },
-    headerEmoji: {
-        fontSize: 24,
-    },
-    headerTitle: {
-        fontSize: 22,
-        fontFamily: 'Inter_800ExtraBold',
-        fontWeight: '800',
-        color: Colors.textPrimaryLight,
-    },
-    periodBadge: {
-        paddingHorizontal: 14,
-        paddingVertical: 8,
+    toggleBtn: {
+        paddingHorizontal: 14, paddingVertical: 8,
         borderRadius: Radius.full,
-        backgroundColor: Colors.white,
-        borderWidth: 1,
-        borderColor: 'rgba(0,0,0,0.04)',
-        ...Shadows.sm,
     },
-    periodBadgeText: {
-        fontSize: 13,
-        fontFamily: 'Inter_600SemiBold',
-        fontWeight: '600',
-        color: Colors.textSecondaryLight,
+    toggleActive: { backgroundColor: Colors.primary },
+    toggleText: { fontSize: 14, fontWeight: '600' },
+    toggleTextActive: { color: Colors.white },
+    divider: { width: 1, height: 20, backgroundColor: 'rgba(0,0,0,0.1)', marginHorizontal: 4 },
+    periodBtn: {
+        paddingHorizontal: 12, paddingVertical: 6,
+        borderRadius: Radius.full, borderWidth: 1,
     },
+    periodActive: { borderColor: Colors.primary, backgroundColor: Colors.primary + '15' },
+    periodText: { fontSize: 13, fontWeight: '500' },
+    periodTextActive: { color: Colors.primary, fontWeight: '700' },
 
-    // ─── Tabs ───
-    tabRow: {
-        flexDirection: 'row',
-        justifyContent: 'center',
-        paddingHorizontal: Layout.screenPadding,
-        gap: 10,
-        paddingBottom: Spacing.sm,
-    },
-    tab: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-        paddingHorizontal: 18,
-        paddingVertical: 10,
-        borderRadius: Radius.full,
-        backgroundColor: Colors.white,
-        borderWidth: 1,
-        borderColor: 'rgba(0,0,0,0.04)',
-        ...Shadows.sm,
-    },
-    tabActive: {
-        backgroundColor: Colors.primary,
-        borderColor: Colors.primary,
-    },
-    tabText: {
-        fontSize: 14,
-        fontFamily: 'Inter_600SemiBold',
-        fontWeight: '600',
-        color: Colors.textMutedLight,
-    },
-    tabTextActive: {
-        color: Colors.white,
-    },
+    content: { paddingBottom: Spacing.md },
 
-    // ─── Period Toggle ───
-    periodRow: {
-        flexDirection: 'row',
-        paddingHorizontal: Layout.screenPadding,
-        gap: 8,
-        paddingBottom: Spacing.sm,
+    // Podium
+    podiumContainer: {
+        flexDirection: 'row', justifyContent: 'center', alignItems: 'flex-end',
+        paddingHorizontal: Layout.screenPadding, paddingTop: 20, paddingBottom: 16,
     },
-    periodPill: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-        paddingHorizontal: 14,
-        paddingVertical: 8,
-        borderRadius: Radius.full,
-        backgroundColor: Colors.cardLightElevated,
+    podiumSlot: { flex: 1, alignItems: 'center', maxWidth: SCREEN_WIDTH / 3 - 16 },
+    podiumMedal: { fontSize: 22, marginBottom: 4 },
+    podiumAvatar: {
+        width: 56, height: 56, borderRadius: 28,
+        borderWidth: 2, borderColor: Colors.primary, marginBottom: 6,
     },
-    periodPillActive: {
-        backgroundColor: Colors.white,
-        borderWidth: 1,
-        borderColor: Colors.primary,
+    podiumAvatarFirst: { width: 72, height: 72, borderRadius: 36, borderWidth: 3, borderColor: Colors.accent },
+    podiumName: { fontSize: 13, fontWeight: '700', textAlign: 'center' },
+    podiumStat: { fontSize: 11, marginTop: 2 },
+    podiumBar: {
+        width: '80%', borderTopLeftRadius: 8, borderTopRightRadius: 8,
+        justifyContent: 'center', alignItems: 'center', marginTop: 8,
     },
-    periodPillText: {
-        fontSize: 13,
-        fontFamily: 'Inter_500Medium',
-        fontWeight: '500',
-        color: Colors.textMutedLight,
-    },
-    periodPillTextActive: {
-        color: Colors.primary,
-        fontFamily: 'Inter_700Bold',
-        fontWeight: '700',
-    },
+    podiumRank: { fontSize: 16, fontWeight: '800', color: Colors.white },
 
-    scrollContent: {
-        paddingHorizontal: Layout.screenPadding,
+    // Rank rows
+    rankRow: {
+        flexDirection: 'row', alignItems: 'center',
+        marginHorizontal: Layout.screenPadding, marginBottom: 8,
+        padding: 12, borderRadius: Radius.lg, ...Shadows.sm,
     },
-
-    // ─── Podium ───
-    podium: {
-        flexDirection: 'row',
-        justifyContent: 'center',
-        alignItems: 'flex-end',
-        paddingTop: 24,
-        paddingBottom: 20,
-    },
-    podiumCol: {
-        alignItems: 'center',
-        flex: 1,
-    },
-    podiumSide: {
-        paddingTop: 20,
-    },
-    podiumCenter: {
-        marginTop: -10,
-    },
-
-    // #1 avatar
-    crownEmoji: {
-        fontSize: 20,
-        marginBottom: 4,
-    },
-    avatarWrap1: {
-        width: 80,
-        height: 80,
-        borderRadius: 40,
-        borderWidth: 3,
-        borderColor: '#F59E0B',
-        overflow: 'hidden',
-        marginBottom: 8,
-        ...Shadows.apple,
-    },
-    avatar1: {
-        width: '100%',
-        height: '100%',
-        backgroundColor: Colors.cardLightElevated,
-    },
-    podiumNameFirst: {
-        fontSize: 15,
-        fontFamily: 'Inter_700Bold',
-        fontWeight: '700',
-        color: Colors.textPrimaryLight,
-        textAlign: 'center',
-    },
-    votesHighlight: {
-        backgroundColor: 'rgba(245, 158, 11, 0.15)',
-        paddingHorizontal: 10,
-        paddingVertical: 3,
-        borderRadius: Radius.full,
-        marginTop: 4,
-    },
-    votesHighlightText: {
-        fontSize: 13,
-        fontWeight: '700',
-        color: '#F59E0B',
-    },
-
-    // #2 avatar
-    avatarWrap2: {
-        width: 60,
-        height: 60,
-        borderRadius: 30,
-        borderWidth: 2.5,
-        borderColor: '#94A3B8',
-        overflow: 'hidden',
-        marginBottom: 6,
-        ...Shadows.apple,
-    },
-    avatar2: {
-        width: '100%',
-        height: '100%',
-        backgroundColor: Colors.cardLightElevated,
-    },
-
-    // #3 avatar
-    avatarWrap3: {
-        width: 60,
-        height: 60,
-        borderRadius: 30,
-        borderWidth: 2.5,
-        borderColor: '#D97706',
-        overflow: 'hidden',
-        marginBottom: 6,
-        ...Shadows.apple,
-    },
-    avatar3: {
-        width: '100%',
-        height: '100%',
-        backgroundColor: Colors.cardLightElevated,
-    },
-
-    podiumName: {
-        fontSize: 13,
-        fontFamily: 'Inter_600SemiBold',
-        fontWeight: '600',
-        color: Colors.textSecondaryLight,
-        textAlign: 'center',
-        width: 85,
-    },
-    podiumVotes: {
-        fontSize: 12,
-        fontFamily: 'Inter_500Medium',
-        color: Colors.textMutedLight,
-        marginTop: 2,
-    },
-
-    // Growth badges
-    growthBadge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 3,
-        paddingHorizontal: 8,
-        paddingVertical: 2,
-        borderRadius: Radius.full,
-        backgroundColor: 'rgba(16, 185, 129, 0.12)',
-        marginTop: 4,
-    },
-    growthBadgeGreen: {
-        backgroundColor: Colors.primary,
-    },
-    growthText: {
-        fontSize: 10,
-        fontWeight: '700',
-        color: Colors.primary,
-    },
-
-    // ─── Ranked List ───
-    rankCard: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: Colors.white,
-        borderRadius: 16,
-        paddingHorizontal: 16,
-        paddingVertical: 16,
-        marginBottom: 10,
-        borderWidth: 1,
-        borderColor: 'rgba(0,0,0,0.04)',
-        gap: 12,
-        ...Shadows.sm,
-    },
-    rankNumber: {
-        fontSize: 16,
-        fontFamily: 'Inter_800ExtraBold',
-        fontWeight: '800',
-        color: Colors.textMutedLight,
-        width: 28,
-    },
+    rankNum: { fontSize: 16, fontWeight: '800', width: 32, textAlign: 'center' },
     rankAvatar: {
-        width: 48,
-        height: 48,
-        borderRadius: 24,
-        backgroundColor: Colors.cardLightElevated,
-        borderWidth: 1.5,
-        borderColor: 'rgba(0,0,0,0.04)',
+        width: 44, height: 44, borderRadius: 22,
+        borderWidth: 1.5, borderColor: Colors.primary, marginRight: 12,
     },
-    rankInfo: {
-        flex: 1,
+    rankInfo: { flex: 1 },
+    rankName: { fontSize: 15, fontWeight: '700' },
+    rankMeta: { fontSize: 12, marginTop: 2 },
+    voteBadge: {
+        flexDirection: 'row', alignItems: 'center', gap: 4,
+        paddingHorizontal: 10, paddingVertical: 5,
+        borderRadius: Radius.full, backgroundColor: Colors.primary + '15',
     },
-    rankName: {
-        fontSize: 16,
-        fontFamily: 'Inter_700Bold',
-        fontWeight: '700',
-        color: Colors.textPrimaryLight,
+    voteCount: { fontSize: 13, fontWeight: '700', color: Colors.primary },
+
+    // Video rows
+    videoRow: {
+        flexDirection: 'row', alignItems: 'center',
+        marginHorizontal: Layout.screenPadding, marginBottom: 8,
+        padding: 10, borderRadius: Radius.lg, ...Shadows.sm,
     },
-    rankSubs: {
-        fontSize: 13,
-        fontFamily: 'Inter_400Regular',
-        color: Colors.textSecondaryLight,
-        marginTop: 2,
-    },
-    rankRight: {
-        alignItems: 'flex-end',
-        gap: 4,
-    },
-    rankVoteBadge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: Radius.full,
-        backgroundColor: Colors.primary + '15',
-    },
-    rankVoteText: {
-        fontSize: 14,
-        fontFamily: 'Inter_700Bold',
-        fontWeight: '700',
-        color: Colors.primary,
-    },
-    rankGrowth: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 2,
-    },
-    rankGrowthText: {
-        fontSize: 11,
-        fontFamily: 'Inter_600SemiBold',
-        fontWeight: '600',
-        color: Colors.primary,
-    },
+    videoRank: { fontSize: 16, fontWeight: '800', width: 36, textAlign: 'center' },
+    videoThumb: { width: 80, height: 50, borderRadius: Radius.md, marginRight: 10 },
+    videoInfo: { flex: 1 },
+    videoTitle: { fontSize: 14, fontWeight: '600' },
+    videoMeta: { fontSize: 12, marginTop: 2 },
+
+    // Empty/Loading
+    loadingContainer: { alignItems: 'center', paddingTop: 60, gap: 12 },
+    emptyContainer: { alignItems: 'center', paddingTop: 60, gap: 8 },
+    emptyTitle: { fontSize: 16, fontWeight: '600' },
+    emptyText: { fontSize: 13 },
 });
