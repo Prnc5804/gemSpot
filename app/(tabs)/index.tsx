@@ -1,8 +1,4 @@
-/**
- * Home Screen — The main landing page with all content sections
- */
-
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,66 +6,125 @@ import {
   ScrollView,
   Image,
   Pressable,
-  FlatList,
+  Dimensions,
   RefreshControl,
+  TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { Colors, Spacing, Radius, Typography, Shadows, Layout, Animation } from '@/constants/theme';
+import { Colors, Spacing, Radius, Typography, Shadows, Layout } from '@/constants/theme';
 import { CATEGORIES } from '@/constants/types';
-import { MOCK_VIDEOS, MOCK_CREATORS, MOCK_CAMPAIGNS, MOCK_SHOP_ITEMS } from '@/constants/mock-data';
-import { VideoCard } from '@/components/video-card';
-import { CreatorCard } from '@/components/creator-card';
+import { MOCK_VIDEOS } from '@/constants/mock-data';
 import { CategoryChip } from '@/components/category-chip';
-import { SectionHeader } from '@/components/section-header';
-import { CampaignCard } from '@/components/campaign-card';
-import { ProductCard } from '@/components/product-card';
-import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTheme } from '@/contexts/theme-context';
+import { db } from '@/services/firebase';
+import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
+import type { Video } from '@/constants/types';
 
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+/** Gem Score formula: based on upvotes, comments, YT views */
+export function computeGemScore(v: Video): number {
+  const nUp = Math.min(5, (v.voteCount || 0) / 100);
+  const nComm = Math.min(5, (v.commentCount || 0) / 20);
+  const nViews = Math.min(5, (v.viewsFromPlatform || 0) / 1000);
+  const raw = (nUp * 0.4 + nComm * 0.3 + nViews * 0.3) * 2;
+  return Math.min(10, parseFloat(Math.max(0.1, raw).toFixed(1)));
+}
 
 export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { isDark, colors } = useTheme();
   const [refreshing, setRefreshing] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [allVideos, setAllVideos] = useState<Video[]>(MOCK_VIDEOS);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  const gemOfDay = MOCK_VIDEOS.find((v) => v.isGemOfDay);
-  const trendingVideos = MOCK_VIDEOS.filter((v) => v.isTrending);
-  const newUploads = MOCK_VIDEOS.slice().sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
-  const topCreators = MOCK_CREATORS.slice(0, 6);
+  const fetchData = async () => {
+    try {
+      const videosQuery = query(collection(db, 'videos'), orderBy('createdAt', 'desc'), limit(30));
+      const videosSnap = await getDocs(videosQuery);
+      const firestoreVideos = videosSnap.docs.map((d: any) => ({ ...d.data(), id: d.id })) as Video[];
+      const combinedVideos = [...firestoreVideos, ...MOCK_VIDEOS.filter(
+        mv => !firestoreVideos.some(fv => fv.id === mv.id)
+      )];
+      setAllVideos(combinedVideos);
+    } catch (error) {
+      console.log('Firestore fetch failed, using mock data:', error);
+    }
+  };
 
-  const onRefresh = useCallback(() => {
+  useEffect(() => { fetchData(); }, []);
+
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 1500);
+    await fetchData();
+    setRefreshing(false);
   }, []);
 
+  const filteredVideos = allVideos.filter(v => {
+    if (selectedCategory && v.category !== selectedCategory) return false;
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      return v.title.toLowerCase().includes(q) || v.creatorName.toLowerCase().includes(q);
+    }
+    return true;
+  });
+
   return (
-    <View style={[styles.screen, { paddingTop: insets.top }]}>
-      {/* Header */}
+    <View style={[styles.screen, { paddingTop: insets.top, backgroundColor: colors.background }]}>
+      {/* ═══ HEADER ═══ */}
       <View style={styles.header}>
-        <View>
-          <Text style={styles.logo}>
+        <View style={styles.headerLeft}>
+          <Text style={styles.logoIcon}>💎</Text>
+          <Text style={[styles.logo, { color: colors.text }]}>
             Gem<Text style={styles.logoAccent}>Spots</Text>
           </Text>
-          <Text style={styles.tagline}>Discover hidden creators</Text>
         </View>
-        <View style={styles.headerIcons}>
-          <Pressable style={styles.iconBtn}>
-            <Ionicons name="search-outline" size={22} color={Colors.textPrimaryDark} />
-          </Pressable>
-          <Pressable style={styles.iconBtn}>
-            <Ionicons name="notifications-outline" size={22} color={Colors.textPrimaryDark} />
-            <View style={styles.notifDot} />
-          </Pressable>
-        </View>
+        <Pressable style={[styles.searchBar, {
+          backgroundColor: isDark ? colors.cardElevated : Colors.white,
+          borderColor: isDark ? colors.border : 'rgba(0,0,0,0.04)',
+        }]}>
+          <Ionicons name="search" size={16} color={Colors.primary} />
+          <TextInput
+            style={[styles.searchInput, { color: colors.text }]}
+            placeholder="Search creators..."
+            placeholderTextColor={colors.textMuted}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+        </Pressable>
       </View>
 
+      {/* ═══ CATEGORY CHIPS ═══ */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.chipRow}
+      >
+        <CategoryChip
+          name="All"
+          emoji="🔥"
+          isSelected={selectedCategory === null}
+          onPress={() => setSelectedCategory(null)}
+        />
+        {CATEGORIES.map((cat) => (
+          <CategoryChip
+            key={cat.name}
+            name={cat.name}
+            emoji={cat.emoji}
+            isSelected={selectedCategory === cat.name}
+            onPress={() => setSelectedCategory(cat.name)}
+          />
+        ))}
+      </ScrollView>
+
+      {/* ═══ VERTICAL VIDEO FEED ═══ */}
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={styles.feedContent}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -79,146 +134,58 @@ export default function HomeScreen() {
           />
         }
       >
-        {/* Hidden Gem of the Day */}
-        {gemOfDay && (
-          <View style={styles.gemSection}>
-            <SectionHeader title="Hidden Gem of the Day" emoji="⭐" showSeeAll={false} />
-            <Pressable
-              style={styles.gemCard}
-              onPress={() => router.push(`/video/${gemOfDay.id}` as any)}
-            >
-              <Image source={{ uri: gemOfDay.thumbnailUrl }} style={styles.gemImage} />
-              <LinearGradient
-                colors={['transparent', 'rgba(0,0,0,0.85)']}
-                style={styles.gemGradient}
-              >
-                <View style={styles.gemBadge}>
-                  <Text style={styles.gemBadgeText}>💎 GEM OF THE DAY</Text>
-                </View>
-                <Text style={styles.gemTitle}>{gemOfDay.title}</Text>
-                <View style={styles.gemCreator}>
-                  <Image source={{ uri: gemOfDay.creatorAvatar }} style={styles.gemAvatar} />
-                  <Text style={styles.gemCreatorName}>{gemOfDay.creatorName}</Text>
-                  <View style={styles.gemDot} />
-                  <Ionicons name="chevron-up" size={14} color={Colors.primary} />
-                  <Text style={styles.gemVotes}>{gemOfDay.voteCount}</Text>
-                </View>
-              </LinearGradient>
-              <View style={styles.playBtnOverlay}>
-                <View style={[styles.playBtn, Shadows.glow(Colors.primary)]}>
-                  <Ionicons name="play" size={24} color={Colors.white} />
-                </View>
-              </View>
-            </Pressable>
+        {filteredVideos.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Ionicons name="videocam-off-outline" size={48} color={colors.textMuted} />
+            <Text style={[styles.emptyTitle, { color: colors.textSecondary }]}>No videos found</Text>
+            <Text style={[styles.emptyHint, { color: colors.textMuted }]}>Try a different category or search term</Text>
           </View>
+        ) : (
+          filteredVideos.map((video) => {
+            const score = computeGemScore(video);
+            return (
+              <Pressable
+                key={video.id}
+                style={styles.videoCard}
+                onPress={() => router.push(`/video/${video.id}` as any)}
+              >
+                {/* Thumbnail */}
+                <View style={[styles.thumbContainer, {
+                  backgroundColor: isDark ? colors.cardElevated : Colors.cardLightElevated,
+                }]}>
+                  <Image source={{ uri: video.thumbnailUrl }} style={styles.thumbnail} />
+                  {/* GemScore Badge — top-right */}
+                  <View style={styles.gemScoreBadge}>
+                    <Ionicons name="diamond" size={11} color={Colors.white} />
+                    <Text style={styles.gemScoreText}>{score}</Text>
+                  </View>
+                  {/* Play overlay */}
+                  <View style={styles.playOverlay}>
+                    <View style={styles.playCircle}>
+                      <Ionicons name="play" size={24} color={Colors.white} />
+                    </View>
+                  </View>
+                  {/* Views badge */}
+                  <View style={styles.durationBadge}>
+                    <Text style={styles.durationText}>
+                      {video.viewsFromPlatform ? `${(video.viewsFromPlatform / 1000).toFixed(1)}K` : '0'}
+                    </Text>
+                  </View>
+                </View>
+                {/* Video Info Row */}
+                <View style={styles.infoRow}>
+                  <Image source={{ uri: video.creatorAvatar }} style={styles.avatarSmall} />
+                  <View style={styles.infoText}>
+                    <Text style={[styles.videoTitle, { color: colors.text }]} numberOfLines={2}>{video.title}</Text>
+                    <Text style={[styles.videoMeta, { color: colors.textMuted }]}>
+                      {video.creatorName} · {(video.viewsFromPlatform || 0).toLocaleString()} views
+                    </Text>
+                  </View>
+                </View>
+              </Pressable>
+            );
+          })
         )}
-
-        {/* Categories */}
-        <SectionHeader title="Categories" emoji="📂" showSeeAll={false} />
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.chipRow}
-        >
-          <CategoryChip
-            name="All"
-            emoji="🔥"
-            isSelected={selectedCategory === null}
-            onPress={() => setSelectedCategory(null)}
-          />
-          {CATEGORIES.map((cat) => (
-            <CategoryChip
-              key={cat.name}
-              name={cat.name}
-              emoji={cat.emoji}
-              isSelected={selectedCategory === cat.name}
-              onPress={() => setSelectedCategory(cat.name)}
-            />
-          ))}
-        </ScrollView>
-
-        {/* Trending Videos */}
-        <SectionHeader title="Trending Videos" emoji="🔥" onSeeAll={() => router.push('/explore')} />
-        <FlatList
-          data={trendingVideos}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.horizontalList}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <VideoCard
-              video={item}
-              compact
-              onPress={() => router.push(`/video/${item.id}` as any)}
-            />
-          )}
-        />
-
-        {/* New Uploads */}
-        <SectionHeader title="New Uploads" emoji="🆕" onSeeAll={() => router.push('/explore')} />
-        <FlatList
-          data={newUploads.slice(0, 5)}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.horizontalList}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <VideoCard
-              video={item}
-              compact
-              onPress={() => router.push(`/video/${item.id}` as any)}
-            />
-          )}
-        />
-
-        {/* Top Creators This Week */}
-        <SectionHeader title="Top Creators This Week" emoji="🏆" onSeeAll={() => router.push('/leaderboard')} />
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.horizontalList}
-        >
-          {topCreators.map((creator) => (
-            <CreatorCard
-              key={creator.id}
-              creator={creator}
-              variant="compact"
-              onPress={() => { }}
-            />
-          ))}
-        </ScrollView>
-
-        {/* Brand Deals Highlight */}
-        <SectionHeader title="Brand Deals" emoji="🤝" onSeeAll={() => router.push('/brand-deals')} />
-        <FlatList
-          data={MOCK_CAMPAIGNS.slice(0, 3)}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.horizontalList}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <CampaignCard
-              campaign={item}
-              compact
-              onPress={() => router.push('/brand-deals')}
-            />
-          )}
-        />
-
-        {/* Creator Shop Preview */}
-        <SectionHeader title="Creator Gear" emoji="🛒" onSeeAll={() => router.push('/shop')} />
-        <FlatList
-          data={MOCK_SHOP_ITEMS.slice(0, 4)}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.horizontalList}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <ProductCard item={item} onPress={() => router.push('/shop')} />
-          )}
-        />
-
-        {/* Bottom padding for tab bar */}
         <View style={{ height: Layout.tabBarHeight + Spacing.xl }} />
       </ScrollView>
     </View>
@@ -226,149 +193,99 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: Colors.backgroundDark,
-  },
+  screen: { flex: 1 },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: Layout.screenPadding,
     paddingVertical: Spacing.sm,
+    gap: 12,
   },
-  logo: {
-    fontSize: 26,
-    fontFamily: 'Inter_700Bold',
-    fontWeight: '700',
-    color: Colors.textPrimaryDark,
-    letterSpacing: -1,
-  },
-  logoAccent: {
-    color: Colors.primary,
-  },
-  tagline: {
-    ...Typography.caption,
-    color: Colors.textMutedDark,
-    marginTop: 1,
-  },
-  headerIcons: {
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  logoIcon: { fontSize: 22 },
+  logo: { fontSize: 22, fontWeight: '800', letterSpacing: -0.5 },
+  logoAccent: { color: Colors.primary },
+  searchBar: {
+    flex: 1,
     flexDirection: 'row',
-    gap: Spacing.sm,
-  },
-  iconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: Radius.full,
-    backgroundColor: Colors.cardDark,
-    justifyContent: 'center',
     alignItems: 'center',
+    borderRadius: Radius.full,
+    paddingHorizontal: 12,
+    height: 36,
+    gap: 6,
+    borderWidth: 1,
+  },
+  searchInput: { flex: 1, fontSize: 13, padding: 0 },
+  chipRow: {
+    paddingHorizontal: Layout.screenPadding,
+    paddingVertical: Spacing.sm,
+    gap: 8,
+  },
+  feedContent: { paddingBottom: Spacing.md },
+  videoCard: { marginBottom: 20 },
+  thumbContainer: {
+    width: SCREEN_WIDTH - Spacing.lg * 2,
+    height: (SCREEN_WIDTH - Spacing.lg * 2) * 0.5625,
     position: 'relative',
-  },
-  notifDot: {
-    position: 'absolute',
-    top: 8,
-    right: 10,
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: Colors.error,
-    borderWidth: 1.5,
-    borderColor: Colors.backgroundDark,
-  },
-  scrollContent: {
-    paddingBottom: Spacing.md,
-  },
-  gemSection: {
-    marginTop: Spacing.sm,
-  },
-  gemCard: {
-    marginHorizontal: Layout.screenPadding,
     borderRadius: Radius.xl,
     overflow: 'hidden',
-    height: 220,
-    position: 'relative',
-    ...Shadows.lg,
+    marginHorizontal: Spacing.lg,
   },
-  gemImage: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: Colors.surfaceDark,
-  },
-  gemGradient: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'flex-end',
-    padding: Spacing.md,
-  },
-  gemBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: 'rgba(16, 185, 129, 0.85)',
-    paddingHorizontal: Spacing.sm + 4,
-    paddingVertical: Spacing.xs,
-    borderRadius: Radius.full,
-    marginBottom: Spacing.sm,
-  },
-  gemBadgeText: {
-    ...Typography.badge,
-    color: Colors.white,
-    letterSpacing: 1,
-  },
-  gemTitle: {
-    fontSize: 20,
-    fontFamily: 'Inter_700Bold',
-    fontWeight: '700',
-    color: Colors.white,
-    marginBottom: Spacing.sm,
-    textShadowColor: 'rgba(0,0,0,0.5)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
-  },
-  gemCreator: {
+  thumbnail: { width: '100%', height: '100%' },
+  gemScoreBadge: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.xs,
-  },
-  gemAvatar: {
-    width: 24,
-    height: 24,
+    gap: 3,
+    backgroundColor: Colors.primary + 'E6',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     borderRadius: Radius.full,
+  },
+  gemScoreText: { fontSize: 12, fontWeight: '800', color: Colors.white },
+  playOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  playCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: Colors.primary + '80',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  durationBadge: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  durationText: { fontSize: 11, fontWeight: '600', color: Colors.white },
+  infoRow: {
+    flexDirection: 'row',
+    paddingHorizontal: Layout.screenPadding,
+    paddingTop: 10,
+    gap: 12,
+  },
+  avatarSmall: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     borderWidth: 1.5,
     borderColor: Colors.primary,
   },
-  gemCreatorName: {
-    ...Typography.body,
-    color: Colors.white,
-    fontWeight: '500',
-  },
-  gemDot: {
-    width: 3,
-    height: 3,
-    borderRadius: 2,
-    backgroundColor: 'rgba(255,255,255,0.5)',
-  },
-  gemVotes: {
-    ...Typography.body,
-    color: Colors.primary,
-    fontWeight: '600',
-  },
-  playBtnOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  playBtn: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: 'rgba(16, 185, 129, 0.85)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  chipRow: {
-    paddingHorizontal: Layout.screenPadding,
-    paddingBottom: Spacing.sm,
-  },
-  horizontalList: {
-    paddingHorizontal: Layout.screenPadding,
-  },
+  infoText: { flex: 1 },
+  videoTitle: { fontSize: 15, fontWeight: '600', lineHeight: 20 },
+  videoMeta: { fontSize: 12, marginTop: 2 },
+  emptyState: { alignItems: 'center', paddingTop: 60, gap: 8 },
+  emptyTitle: { fontSize: 16, fontWeight: '600' },
+  emptyHint: { fontSize: 13 },
 });

@@ -79,6 +79,7 @@ export async function submitVideo(input: SubmitVideoInput): Promise<SubmitResult
         const videoDoc = {
             id: videoRef.id,
             youtubeVideoId: videoInfo.videoId,
+            youtubeUrl: input.youtubeUrl,
             title: videoInfo.title || input.description,
             description: input.description,
             category: input.category,
@@ -211,4 +212,52 @@ export async function getVideoById(videoId: string): Promise<Video | null> {
     const snap = await getDoc(doc(db, 'videos', videoId));
     if (!snap.exists()) return null;
     return { ...snap.data(), id: snap.id } as Video;
+}
+
+/**
+ * Get all videos submitted by a specific user
+ */
+export async function getVideosByUser(userId: string): Promise<Video[]> {
+    const q = query(
+        collection(db, 'videos'),
+        where('submittedBy', '==', userId),
+        orderBy('createdAt', 'desc')
+    );
+    const snap = await getDocs(q);
+    return snap.docs.map((d: any) => ({ ...d.data(), id: d.id })) as Video[];
+}
+
+/**
+ * Delete a video (only if submitted by the requesting user)
+ */
+export async function deleteVideo(videoId: string, userId: string): Promise<{ success: boolean; error?: string }> {
+    try {
+        const videoRef = doc(db, 'videos', videoId);
+        const videoSnap = await getDoc(videoRef);
+
+        if (!videoSnap.exists()) {
+            return { success: false, error: 'Video not found' };
+        }
+
+        const videoData = videoSnap.data();
+        if (videoData?.submittedBy !== userId) {
+            return { success: false, error: 'You can only delete videos you submitted' };
+        }
+
+        // Decrease creator video count
+        if (videoData?.creatorId) {
+            try {
+                await updateDoc(doc(db, 'creators', videoData.creatorId), {
+                    videosCount: increment(-1),
+                });
+            } catch (_) { /* creator may not exist */ }
+        }
+
+        const { deleteDoc: firestoreDeleteDoc } = await import('firebase/firestore');
+        await firestoreDeleteDoc(videoRef);
+
+        return { success: true };
+    } catch (error: any) {
+        return { success: false, error: error.message || 'Failed to delete video' };
+    }
 }

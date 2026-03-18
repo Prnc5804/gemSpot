@@ -20,6 +20,7 @@ import { SearchBar } from '@/components/search-bar';
 import { EmptyState } from '@/components/empty-state';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { ShopCategory } from '@/constants/types';
+import { useTheme } from '@/contexts/theme-context';
 
 const SHOP_CATEGORIES: { name: ShopCategory | 'All'; icon: keyof typeof Ionicons.glyphMap }[] = [
     { name: 'All', icon: 'grid' },
@@ -34,6 +35,7 @@ const SHOP_CATEGORIES: { name: ShopCategory | 'All'; icon: keyof typeof Ionicons
 export default function ShopScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
+    const { isDark, colors } = useTheme();
     const [selectedCategory, setSelectedCategory] = useState<ShopCategory | 'All'>('All');
     const [search, setSearch] = useState('');
 
@@ -43,14 +45,17 @@ export default function ShopScreen() {
         return matchesCat && matchesSearch;
     });
 
+    const cardBg = isDark ? colors.cardElevated : Colors.white;
+    const borderColor = isDark ? colors.border : 'rgba(0,0,0,0.04)';
+
     return (
-        <View style={[styles.screen, { paddingTop: insets.top }]}>
+        <View style={[styles.screen, { paddingTop: insets.top, backgroundColor: colors.background }]}>
             {/* Header */}
             <View style={styles.header}>
                 <Pressable onPress={() => router.back()} style={styles.backBtn}>
-                    <Ionicons name="arrow-back" size={22} color={Colors.textPrimaryDark} />
+                    <Ionicons name="arrow-back" size={22} color={colors.text} />
                 </Pressable>
-                <Text style={styles.headerTitle}>🛒 Creator Shop</Text>
+                <Text style={[styles.headerTitle, { color: colors.text }]}>🛒 Creator Shop</Text>
                 <View style={{ width: 40 }} />
             </View>
 
@@ -61,15 +66,15 @@ export default function ShopScreen() {
                 {SHOP_CATEGORIES.map((cat) => (
                     <Pressable
                         key={cat.name}
-                        style={[styles.catChip, selectedCategory === cat.name && styles.catChipActive]}
+                        style={[styles.catChip, { backgroundColor: cardBg, borderColor }, selectedCategory === cat.name && styles.catChipActive]}
                         onPress={() => setSelectedCategory(cat.name)}
                     >
                         <Ionicons
                             name={cat.icon}
                             size={16}
-                            color={selectedCategory === cat.name ? Colors.white : Colors.textMutedDark}
+                            color={selectedCategory === cat.name ? Colors.white : colors.textMuted}
                         />
-                        <Text style={[styles.catText, selectedCategory === cat.name && styles.catTextActive]}>
+                        <Text style={[styles.catText, { color: colors.textSecondary }, selectedCategory === cat.name && styles.catTextActive]}>
                             {cat.name}
                         </Text>
                     </Pressable>
@@ -79,11 +84,11 @@ export default function ShopScreen() {
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
                 {/* Starter Kit Banner */}
                 {(selectedCategory === 'All' || selectedCategory === 'Starter Kits') && (
-                    <Pressable style={[styles.kitBanner, Shadows.lg]}>
+                    <Pressable style={[styles.kitBanner, Shadows.lg, { backgroundColor: cardBg, borderColor }]}>
                         <View style={styles.kitInfo}>
-                            <Text style={styles.kitTitle}>🎁 Creator Starter Kit</Text>
-                            <Text style={styles.kitSubtitle}>Everything you need to start creating</Text>
-                            <Text style={styles.kitPrice}>$149.99 <Text style={styles.kitOriginal}>$199.99</Text></Text>
+                            <Text style={[styles.kitTitle, { color: colors.text }]}>🎁 Creator Starter Kit</Text>
+                            <Text style={[styles.kitSubtitle, { color: colors.textSecondary }]}>Everything you need to start creating</Text>
+                            <Text style={styles.kitPrice}>$149.99 <Text style={[styles.kitOriginal, { color: colors.textMuted }]}>$199.99</Text></Text>
                         </View>
                         <View style={styles.kitBadge}>
                             <Ionicons name="star" size={12} color={Colors.white} />
@@ -116,48 +121,82 @@ export default function ShopScreen() {
 }
 
 const styles = StyleSheet.create({
-    screen: { flex: 1, backgroundColor: Colors.backgroundDark },
+    screen: { flex: 1, backgroundColor: Colors.backgroundLight },
     header: {
         flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
         paddingHorizontal: Spacing.sm, paddingVertical: Spacing.sm,
     },
     backBtn: { width: 40, height: 40, borderRadius: Radius.full, justifyContent: 'center', alignItems: 'center' },
-    headerTitle: { ...Typography.sectionTitle, color: Colors.textPrimaryDark },
+    headerTitle: {
+        fontSize: 22,
+        fontFamily: 'Inter_800ExtraBold',
+        fontWeight: '800',
+        color: Colors.textPrimaryLight,
+    },
     catRow: {
         paddingHorizontal: Layout.screenPadding, gap: Spacing.sm,
         paddingVertical: Spacing.sm,
     },
     catChip: {
         flexDirection: 'row', alignItems: 'center', gap: 6,
-        paddingHorizontal: Spacing.sm + 4, paddingVertical: Spacing.sm,
-        borderRadius: Radius.full, backgroundColor: Colors.cardDark,
-        borderWidth: 1, borderColor: Colors.borderDark,
+        paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2,
+        borderRadius: Radius.full, backgroundColor: Colors.white,
+        borderWidth: 1, borderColor: 'rgba(0,0,0,0.04)',
+        ...Shadows.sm,
     },
     catChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-    catText: { ...Typography.caption, color: Colors.textMutedDark, fontWeight: '500' },
-    catTextActive: { color: Colors.white, fontWeight: '600' },
+    catText: { fontSize: 14, fontFamily: 'Inter_500Medium', fontWeight: '500', color: Colors.textSecondaryLight },
+    catTextActive: { color: Colors.white, fontFamily: 'Inter_600SemiBold', fontWeight: '600' },
     scrollContent: { paddingHorizontal: Layout.screenPadding },
     kitBanner: {
-        backgroundColor: Colors.cardDark,
-        borderRadius: Radius.lg,
-        padding: Spacing.md,
-        marginBottom: Spacing.md,
+        backgroundColor: Colors.white,
+        borderRadius: Radius.xl,
+        padding: Spacing.lg,
+        marginBottom: Spacing.lg,
         borderWidth: 1,
-        borderColor: Colors.accent + '40',
+        borderColor: 'rgba(0,0,0,0.04)',
         position: 'relative',
+        ...Shadows.sm,
     },
-    kitInfo: {},
-    kitTitle: { ...Typography.sectionTitle, color: Colors.textPrimaryDark },
-    kitSubtitle: { ...Typography.body, color: Colors.textSecondaryDark, marginTop: 4 },
-    kitPrice: { ...Typography.screenTitle, color: Colors.accent, marginTop: Spacing.sm, fontSize: 20 },
-    kitOriginal: { ...Typography.caption, color: Colors.textMutedDark, textDecorationLine: 'line-through', fontSize: 14 },
+    kitInfo: { marginTop: Spacing.sm },
+    kitTitle: {
+        fontSize: 18,
+        fontFamily: 'Inter_700Bold',
+        fontWeight: '700',
+        color: Colors.textPrimaryLight,
+    },
+    kitSubtitle: {
+        fontSize: 14,
+        fontFamily: 'Inter_400Regular',
+        color: Colors.textSecondaryLight,
+        marginTop: 4,
+    },
+    kitPrice: {
+        fontSize: 24,
+        fontFamily: 'Inter_800ExtraBold',
+        fontWeight: '800',
+        color: Colors.accent,
+        marginTop: Spacing.sm,
+    },
+    kitOriginal: {
+        fontSize: 14,
+        fontFamily: 'Inter_500Medium',
+        fontWeight: '500',
+        color: Colors.textMutedLight,
+        textDecorationLine: 'line-through',
+    },
     kitBadge: {
-        position: 'absolute', top: Spacing.sm, right: Spacing.sm,
+        position: 'absolute', top: Spacing.md, right: Spacing.md,
         flexDirection: 'row', alignItems: 'center', gap: 4,
-        backgroundColor: Colors.accent, paddingHorizontal: Spacing.sm,
-        paddingVertical: 4, borderRadius: Radius.full,
+        backgroundColor: Colors.primary + '15', paddingHorizontal: Spacing.sm + 4,
+        paddingVertical: 6, borderRadius: Radius.full,
     },
-    kitBadgeText: { ...Typography.badge, color: Colors.white },
+    kitBadgeText: {
+        fontSize: 13,
+        fontFamily: 'Inter_700Bold',
+        fontWeight: '700',
+        color: Colors.primary,
+    },
     productGrid: {
         flexDirection: 'row', flexWrap: 'wrap',
         gap: Spacing.sm,

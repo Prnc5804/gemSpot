@@ -1,5 +1,5 @@
 /**
- * VideoCard — Thumbnail card with play overlay, info, and upvote button
+ * VideoCard — Thumbnail card with play overlay, Gem Score badge, and upvote button
  */
 
 import React, { useState } from 'react';
@@ -15,6 +15,15 @@ import Animated, {
 } from 'react-native-reanimated';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+/** Gem Score formula */
+function computeGemScore(v: Video): number {
+    const nUp = Math.min(5, (v.voteCount || 0) / 100);
+    const nComm = Math.min(5, (v.commentCount || 0) / 20);
+    const nViews = Math.min(5, (v.viewsFromPlatform || 0) / 1000);
+    const raw = (nUp * 0.4 + nComm * 0.3 + nViews * 0.3) * 2;
+    return Math.min(10, parseFloat(Math.max(0.1, raw).toFixed(1)));
+}
 
 interface VideoCardProps {
     video: Video;
@@ -58,6 +67,8 @@ export function VideoCard({ video, onPress, onVote, compact, horizontal }: Video
         onVote?.();
     };
 
+    const gemScore = computeGemScore(video);
+
     if (horizontal) {
         return (
             <AnimatedPressable
@@ -66,7 +77,14 @@ export function VideoCard({ video, onPress, onVote, compact, horizontal }: Video
                 onPressIn={handlePressIn}
                 onPressOut={handlePressOut}
             >
-                <Image source={{ uri: video.thumbnailUrl }} style={styles.horizontalThumb} />
+                <View style={{ position: 'relative' }}>
+                    <Image source={{ uri: video.thumbnailUrl }} style={styles.horizontalThumb} />
+                    {/* Gem Score on horizontal */}
+                    <View style={styles.gemBadgeSmall}>
+                        <Ionicons name="diamond" size={9} color={Colors.white} />
+                        <Text style={styles.gemBadgeSmallText}>{gemScore}</Text>
+                    </View>
+                </View>
                 <View style={styles.horizontalInfo}>
                     <Text style={styles.horizontalTitle} numberOfLines={2}>{video.title}</Text>
                     <Text style={styles.channelName}>{video.creatorName}</Text>
@@ -93,13 +111,20 @@ export function VideoCard({ video, onPress, onVote, compact, horizontal }: Video
                 <View style={styles.playOverlay}>
                     <Ionicons name="play-circle" size={compact ? 32 : 44} color="rgba(255,255,255,0.9)" />
                 </View>
+
+                {/* Gem Score Badge — top-right */}
+                <View style={styles.gemBadge}>
+                    <Ionicons name="diamond" size={10} color={Colors.white} />
+                    <Text style={styles.gemBadgeText}>{gemScore}</Text>
+                </View>
+
                 {video.isTrending && (
                     <View style={styles.trendingBadge}>
                         <Text style={styles.badgeText}>🔥 Trending</Text>
                     </View>
                 )}
                 {video.isGemOfDay && (
-                    <View style={[styles.trendingBadge, styles.gemBadge]}>
+                    <View style={[styles.trendingBadge, styles.gemOfDayBadge]}>
                         <Text style={styles.badgeText}>💎 Gem</Text>
                     </View>
                 )}
@@ -135,40 +160,45 @@ function formatCount(n: number): string {
 
 const styles = StyleSheet.create({
     card: {
-        backgroundColor: Colors.cardDark,
-        borderRadius: Radius.lg,
+        backgroundColor: Colors.cardLight,
+        borderRadius: Radius.xl,
         overflow: 'hidden',
-        marginBottom: Spacing.md,
+        marginBottom: Spacing.lg,
+        borderWidth: 1,
+        borderColor: Colors.primary + '08',
+        ...Shadows.apple,
     },
     compactCard: {
-        backgroundColor: Colors.cardDark,
-        borderRadius: Radius.md,
+        backgroundColor: Colors.cardLight,
+        borderRadius: Radius.lg,
         overflow: 'hidden',
         width: 200,
         marginRight: Spacing.sm,
+        ...Shadows.sm,
     },
     horizontalCard: {
-        backgroundColor: Colors.cardDark,
-        borderRadius: Radius.md,
+        backgroundColor: Colors.cardLight,
+        borderRadius: Radius.lg,
         flexDirection: 'row',
         overflow: 'hidden',
         marginBottom: Spacing.sm,
+        ...Shadows.sm,
     },
     thumbContainer: { position: 'relative' },
     thumbnail: {
         width: '100%',
         height: 200,
-        backgroundColor: Colors.surfaceDark,
+        backgroundColor: Colors.cardLightElevated,
     },
     compactThumb: {
         width: 200,
         height: 112,
-        backgroundColor: Colors.surfaceDark,
+        backgroundColor: Colors.cardLightElevated,
     },
     horizontalThumb: {
         width: 120,
         height: 80,
-        backgroundColor: Colors.surfaceDark,
+        backgroundColor: Colors.cardLightElevated,
     },
     playOverlay: {
         ...StyleSheet.absoluteFillObject,
@@ -176,6 +206,43 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         backgroundColor: 'rgba(0,0,0,0.15)',
     },
+
+    // Gem Score Badge — top-right
+    gemBadge: {
+        position: 'absolute',
+        top: Spacing.sm,
+        right: Spacing.sm,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 3,
+        backgroundColor: Colors.primary + 'E6',
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        borderRadius: Radius.full,
+    },
+    gemBadgeText: {
+        fontSize: 11,
+        fontWeight: '800',
+        color: Colors.white,
+    },
+    gemBadgeSmall: {
+        position: 'absolute',
+        top: 4,
+        right: 4,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 2,
+        backgroundColor: Colors.primary + 'E6',
+        paddingHorizontal: 5,
+        paddingVertical: 2,
+        borderRadius: Radius.full,
+    },
+    gemBadgeSmallText: {
+        fontSize: 9,
+        fontWeight: '800',
+        color: Colors.white,
+    },
+
     trendingBadge: {
         position: 'absolute',
         top: Spacing.sm,
@@ -185,17 +252,17 @@ const styles = StyleSheet.create({
         paddingVertical: 2,
         borderRadius: Radius.full,
     },
-    gemBadge: {
-        backgroundColor: 'rgba(16, 185, 129, 0.9)',
-        left: undefined,
-        right: Spacing.sm,
+    gemOfDayBadge: {
+        backgroundColor: Colors.primary + 'E6',
+        top: Spacing.sm + 26,
+        left: Spacing.sm,
     },
     badgeText: {
         ...Typography.badge,
         color: Colors.white,
     },
     infoContainer: {
-        padding: Spacing.sm,
+        padding: Spacing.md,
     },
     titleRow: {
         flexDirection: 'row',
@@ -208,22 +275,27 @@ const styles = StyleSheet.create({
         width: 32,
         height: 32,
         borderRadius: Radius.full,
-        backgroundColor: Colors.surfaceDark,
+        backgroundColor: Colors.cardLightElevated,
     },
     title: {
         ...Typography.cardTitle,
-        color: Colors.textPrimaryDark,
+        color: Colors.textPrimaryLight,
+        fontFamily: 'Inter_700Bold',
+        fontWeight: '700',
+        fontSize: 16,
     },
     compactTitle: {
         ...Typography.body,
-        color: Colors.textPrimaryDark,
+        color: Colors.textPrimaryLight,
         fontFamily: 'Inter_500Medium',
         fontWeight: '500',
     },
     channelName: {
         ...Typography.caption,
-        color: Colors.textSecondaryDark,
-        marginTop: 2,
+        color: Colors.textMutedLight,
+        marginTop: 4,
+        fontFamily: 'Inter_500Medium',
+        fontWeight: '500',
     },
     horizontalInfo: {
         flex: 1,
@@ -232,7 +304,7 @@ const styles = StyleSheet.create({
     },
     horizontalTitle: {
         ...Typography.body,
-        color: Colors.textPrimaryDark,
+        color: Colors.textPrimaryLight,
         fontWeight: '500',
     },
     statsRow: {
@@ -243,7 +315,7 @@ const styles = StyleSheet.create({
     },
     statText: {
         ...Typography.caption,
-        color: Colors.textSecondaryDark,
+        color: Colors.textMutedLight,
     },
     votedText: {
         color: Colors.primary,
@@ -253,7 +325,7 @@ const styles = StyleSheet.create({
         width: 3,
         height: 3,
         borderRadius: 2,
-        backgroundColor: Colors.textMutedDark,
+        backgroundColor: Colors.textMutedLight,
     },
     bottomRow: {
         flexDirection: 'row',
@@ -262,24 +334,23 @@ const styles = StyleSheet.create({
         marginTop: Spacing.sm,
     },
     categoryChip: {
-        backgroundColor: Colors.cardDarkElevated,
+        backgroundColor: Colors.cardLightElevated,
         paddingHorizontal: Spacing.sm,
         paddingVertical: 3,
         borderRadius: Radius.full,
     },
     categoryText: {
         ...Typography.caption,
-        color: Colors.textSecondaryDark,
+        color: Colors.textSecondaryLight,
     },
     voteBtn: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 4,
-        paddingHorizontal: Spacing.sm,
-        paddingVertical: Spacing.xs,
-        borderRadius: Radius.full,
-        borderWidth: 1,
-        borderColor: Colors.primary,
+        gap: Spacing.sm,
+        paddingHorizontal: Spacing.lg,
+        paddingVertical: Spacing.sm,
+        borderRadius: Radius.md,
+        backgroundColor: Colors.primary + '15',
     },
     voteBtnActive: {
         backgroundColor: Colors.primary,

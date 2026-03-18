@@ -1,5 +1,5 @@
 /**
- * Login Screen — Firebase Auth connected
+ * Login Screen — Firebase Auth connected, dark mode support
  */
 
 import React, { useState } from 'react';
@@ -12,15 +12,15 @@ import {
     KeyboardAvoidingView,
     Platform,
     ActivityIndicator,
-    Alert,
+    ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { Colors, Spacing, Radius, Typography, Shadows, Layout, Animation } from '@/constants/theme';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, withSequence } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/contexts/auth-context';
+import { useTheme } from '@/contexts/theme-context';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -28,6 +28,7 @@ export default function LoginScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { signIn } = useAuth();
+    const { isDark, colors } = useTheme();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
@@ -60,167 +61,189 @@ export default function LoginScreen() {
         }
     };
 
+    const bgColor = colors.background;
+    const cardBg = isDark ? colors.cardElevated : Colors.white;
+    const inputBg = isDark ? colors.cardElevated : Colors.textPrimaryLight + '08';
+    const inputBorder = isDark ? colors.border : Colors.textPrimaryLight + '10';
+    const textColor = colors.text;
+    const mutedColor = colors.textMuted;
+
     return (
         <KeyboardAvoidingView
-            style={[styles.screen, { paddingTop: insets.top }]}
+            style={[styles.screen, { paddingTop: insets.top, backgroundColor: bgColor }]}
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-            <View style={styles.container}>
-                {/* Close */}
-                <Pressable onPress={() => router.back()} style={styles.closeBtn}>
-                    <Ionicons name="close" size={24} color={Colors.textPrimaryDark} />
-                </Pressable>
-
-                {/* Logo */}
-                <View style={styles.logoSection}>
-                    <View style={[styles.logoCircle, Shadows.glow(Colors.primary)]}>
-                        <Text style={styles.logoEmoji}>💎</Text>
-                    </View>
-                    <Text style={styles.logoText}>
-                        Gem<Text style={styles.logoAccent}>Spots</Text>
-                    </Text>
-                    <Text style={styles.tagline}>Discover hidden creators</Text>
-                </View>
-
-                {/* Form */}
-                <View style={styles.form}>
-                    <View style={styles.inputContainer}>
-                        <Ionicons name="mail-outline" size={18} color={Colors.textMutedDark} />
-                        <TextInput
-                            style={styles.input}
-                            placeholder="Email address"
-                            placeholderTextColor={Colors.textMutedDark}
-                            value={email}
-                            onChangeText={setEmail}
-                            keyboardType="email-address"
-                            autoCapitalize="none"
-                        />
+            <ScrollView
+                contentContainerStyle={styles.scrollContent}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+            >
+                <View style={styles.container}>
+                    {/* Logo */}
+                    <View style={styles.logoSection}>
+                        <View style={styles.logoCircle}>
+                            <Text style={styles.logoEmoji}>💎</Text>
+                        </View>
+                        <Text style={[styles.logoText, { color: textColor }]}>GemSpots</Text>
+                        <Text style={[styles.tagline, { color: colors.textSecondary }]}>Enter your details to access your gems</Text>
                     </View>
 
-                    <View style={styles.inputContainer}>
-                        <Ionicons name="lock-closed-outline" size={18} color={Colors.textMutedDark} />
-                        <TextInput
-                            style={styles.input}
-                            placeholder="Password"
-                            placeholderTextColor={Colors.textMutedDark}
-                            value={password}
-                            onChangeText={setPassword}
-                            secureTextEntry={!showPassword}
-                        />
-                        <Pressable onPress={() => setShowPassword(!showPassword)}>
-                            <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={18} color={Colors.textMutedDark} />
-                        </Pressable>
-                    </View>
+                    {/* Form */}
+                    <View style={styles.form}>
+                        <View>
+                            <Text style={[styles.inputLabel, { color: textColor }]}>Email</Text>
+                            <View style={[styles.inputContainer, { backgroundColor: inputBg, borderColor: inputBorder }]}>
+                                <Ionicons name="mail-outline" size={18} color={mutedColor} />
+                                <TextInput
+                                    style={[styles.input, { color: textColor }]}
+                                    placeholder="name@example.com"
+                                    placeholderTextColor={mutedColor}
+                                    value={email}
+                                    onChangeText={setEmail}
+                                    keyboardType="email-address"
+                                    autoCapitalize="none"
+                                />
+                            </View>
+                        </View>
 
-                    <Pressable style={styles.forgotBtn}>
-                        <Text style={styles.forgotText}>Forgot Password?</Text>
-                    </Pressable>
+                        <View>
+                            <View style={styles.passwordHeader}>
+                                <Text style={[styles.inputLabel, { color: textColor }]}>Password</Text>
+                                <Pressable>
+                                    <Text style={styles.forgotText}>Forgot password?</Text>
+                                </Pressable>
+                            </View>
+                            <View style={[styles.inputContainer, { backgroundColor: inputBg, borderColor: inputBorder }]}>
+                                <Ionicons name="lock-closed-outline" size={18} color={mutedColor} />
+                                <TextInput
+                                    style={[styles.input, { color: textColor }]}
+                                    placeholder="••••••••"
+                                    placeholderTextColor={mutedColor}
+                                    value={password}
+                                    onChangeText={setPassword}
+                                    secureTextEntry={!showPassword}
+                                />
+                                <Pressable onPress={() => setShowPassword(!showPassword)}>
+                                    <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={18} color={mutedColor} />
+                                </Pressable>
+                            </View>
+                        </View>
 
-                    {error ? <Text style={styles.errorText}>{error}</Text> : null}
+                        {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-                    <AnimatedPressable style={[styles.loginBtn, btnAnimStyle]} onPress={handleLogin}>
-                        <LinearGradient
-                            colors={Colors.gradientPrimary}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 0 }}
-                            style={styles.loginGradient}
-                        >
+                        <AnimatedPressable style={[styles.loginBtn, btnAnimStyle]} onPress={handleLogin}>
                             {loading ? (
                                 <ActivityIndicator color={Colors.white} />
                             ) : (
-                                <>
-                                    <Text style={styles.loginText}>Sign In</Text>
-                                    <Ionicons name="arrow-forward" size={18} color={Colors.white} />
-                                </>
+                                <Text style={styles.loginText}>Login to GemSpots</Text>
                             )}
-                        </LinearGradient>
-                    </AnimatedPressable>
-                </View>
+                        </AnimatedPressable>
+                    </View>
 
-                {/* Divider */}
-                <View style={styles.divider}>
-                    <View style={styles.dividerLine} />
-                    <Text style={styles.dividerText}>or continue with</Text>
-                    <View style={styles.dividerLine} />
-                </View>
+                    {/* Divider */}
+                    <View style={styles.divider}>
+                        <View style={[styles.dividerLine, { backgroundColor: isDark ? colors.border : Colors.textPrimaryLight + '10' }]} />
+                        <Text style={[styles.dividerText, { color: mutedColor }]}>Or continue with</Text>
+                        <View style={[styles.dividerLine, { backgroundColor: isDark ? colors.border : Colors.textPrimaryLight + '10' }]} />
+                    </View>
 
-                {/* Social Login */}
-                <View style={styles.socialRow}>
-                    <Pressable style={styles.socialBtn}>
-                        <Ionicons name="logo-google" size={20} color={Colors.textPrimaryDark} />
-                    </Pressable>
-                    <Pressable style={styles.socialBtn}>
-                        <Ionicons name="logo-apple" size={20} color={Colors.textPrimaryDark} />
-                    </Pressable>
-                    <Pressable style={styles.socialBtn}>
-                        <Ionicons name="logo-github" size={20} color={Colors.textPrimaryDark} />
-                    </Pressable>
-                </View>
+                    {/* Social Login */}
+                    <View style={styles.socialRow}>
+                        <Pressable style={[styles.socialBtn, { backgroundColor: cardBg, borderColor: inputBorder }]}>
+                            <Ionicons name="logo-google" size={20} color={textColor} />
+                        </Pressable>
+                        <Pressable style={[styles.socialBtn, { backgroundColor: cardBg, borderColor: inputBorder }]}>
+                            <Ionicons name="logo-apple" size={20} color={textColor} />
+                        </Pressable>
+                        <Pressable style={[styles.socialBtn, { backgroundColor: cardBg, borderColor: inputBorder }]}>
+                            <Ionicons name="logo-github" size={20} color={textColor} />
+                        </Pressable>
+                    </View>
 
-                {/* Sign Up */}
-                <View style={styles.signupRow}>
-                    <Text style={styles.signupText}>Don't have an account? </Text>
-                    <Pressable onPress={() => router.push('/auth/signup')}>
-                        <Text style={styles.signupLink}>Sign Up</Text>
-                    </Pressable>
+                    {/* Sign Up */}
+                    <View style={styles.signupRow}>
+                        <Text style={[styles.signupText, { color: colors.textSecondary }]}>Don't have an account? </Text>
+                        <Pressable onPress={() => router.push('/auth/signup')}>
+                            <Text style={styles.signupLink}>Sign up for free</Text>
+                        </Pressable>
+                    </View>
                 </View>
-            </View>
+            </ScrollView>
         </KeyboardAvoidingView>
     );
 }
 
 const styles = StyleSheet.create({
-    screen: { flex: 1, backgroundColor: Colors.backgroundDark },
-    container: { flex: 1, paddingHorizontal: Layout.screenPadding + Spacing.sm, justifyContent: 'center' },
-    closeBtn: {
-        position: 'absolute', top: Spacing.sm, right: 0,
-        width: 40, height: 40, borderRadius: Radius.full,
-        justifyContent: 'center', alignItems: 'center',
-    },
+    screen: { flex: 1 },
+    scrollContent: { flexGrow: 1, justifyContent: 'center' },
+    container: { paddingHorizontal: Spacing.xl, paddingVertical: Spacing.xl },
     logoSection: { alignItems: 'center', marginBottom: Spacing['3xl'] },
     logoCircle: {
-        width: 72, height: 72, borderRadius: 36,
-        backgroundColor: Colors.primary + '20',
+        width: 64, height: 64, borderRadius: 32,
+        backgroundColor: Colors.accent + '15',
         justifyContent: 'center', alignItems: 'center',
         marginBottom: Spacing.md,
     },
-    logoEmoji: { fontSize: 32 },
+    logoEmoji: { fontSize: 28 },
     logoText: {
-        fontSize: 30, fontFamily: 'Inter_700Bold', fontWeight: '700',
-        color: Colors.textPrimaryDark, letterSpacing: -1,
+        fontSize: 28, fontFamily: 'Inter_700Bold', fontWeight: '700',
+        letterSpacing: -0.5,
     },
-    logoAccent: { color: Colors.primary },
-    tagline: { ...Typography.body, color: Colors.textMutedDark, marginTop: 4 },
-    form: { gap: Spacing.md },
+    tagline: {
+        fontSize: 14, fontFamily: 'Inter_400Regular',
+        marginTop: Spacing.xs, opacity: 0.6,
+    },
+    form: { gap: Spacing.lg },
+    inputLabel: {
+        fontSize: 13, fontFamily: 'Inter_600SemiBold', fontWeight: '600',
+        marginBottom: 6, marginLeft: 4,
+    },
+    passwordHeader: {
+        flexDirection: 'row', justifyContent: 'space-between',
+        alignItems: 'center', marginBottom: 6,
+    },
     inputContainer: {
         flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
-        backgroundColor: Colors.cardDark, borderRadius: Radius.md,
-        paddingHorizontal: Spacing.md, height: Layout.inputHeight + 4,
-        borderWidth: 1, borderColor: Colors.borderDark,
+        borderRadius: Radius.sm, paddingHorizontal: Spacing.md, height: 56,
+        borderWidth: 1,
     },
-    input: { flex: 1, ...Typography.body, color: Colors.textPrimaryDark },
-    forgotBtn: { alignSelf: 'flex-end' },
-    forgotText: { ...Typography.caption, color: Colors.primary },
-    loginBtn: { borderRadius: Radius.md, overflow: 'hidden', ...Shadows.glow(Colors.primary) },
-    loginGradient: {
-        flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-        gap: Spacing.sm, height: Layout.buttonHeight + 4,
+    input: {
+        flex: 1, fontSize: 15, fontFamily: 'Inter_400Regular',
     },
-    loginText: { ...Typography.button, color: Colors.white, fontSize: 16 },
-    errorText: { ...Typography.caption, color: Colors.error, textAlign: 'center', marginTop: Spacing.xs },
+    forgotText: {
+        fontSize: 13, fontFamily: 'Inter_500Medium', fontWeight: '500',
+        color: Colors.accent, marginLeft: 4,
+    },
+    errorText: {
+        fontSize: 13, fontFamily: 'Inter_400Regular',
+        color: Colors.error, textAlign: 'center',
+    },
+    loginBtn: {
+        backgroundColor: Colors.accent, borderRadius: Radius.sm, height: 56,
+        justifyContent: 'center', alignItems: 'center', marginTop: Spacing.xs,
+        ...Shadows.glow(Colors.accent),
+    },
+    loginText: {
+        fontSize: 16, fontFamily: 'Inter_700Bold', fontWeight: '700', color: Colors.white,
+    },
     divider: {
-        flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
-        marginVertical: Spacing.lg,
+        flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginVertical: Spacing.xl,
     },
-    dividerLine: { flex: 1, height: 1, backgroundColor: Colors.borderDark },
-    dividerText: { ...Typography.caption, color: Colors.textMutedDark },
+    dividerLine: { flex: 1, height: 1 },
+    dividerText: {
+        fontSize: 11, fontFamily: 'Inter_500Medium', fontWeight: '500',
+        textTransform: 'uppercase', letterSpacing: 0.5,
+    },
     socialRow: { flexDirection: 'row', justifyContent: 'center', gap: Spacing.md },
     socialBtn: {
-        width: 52, height: 52, borderRadius: Radius.md,
-        backgroundColor: Colors.cardDark, justifyContent: 'center', alignItems: 'center',
-        borderWidth: 1, borderColor: Colors.borderDark,
+        flex: 1, height: 52, borderRadius: Radius.sm,
+        justifyContent: 'center', alignItems: 'center', borderWidth: 1,
     },
-    signupRow: { flexDirection: 'row', justifyContent: 'center', marginTop: Spacing.lg },
-    signupText: { ...Typography.body, color: Colors.textSecondaryDark },
-    signupLink: { ...Typography.body, color: Colors.primary, fontWeight: '600' },
+    signupRow: { flexDirection: 'row', justifyContent: 'center', marginTop: Spacing['2xl'] },
+    signupText: {
+        fontSize: 14, fontFamily: 'Inter_400Regular', opacity: 0.6,
+    },
+    signupLink: {
+        fontSize: 14, fontFamily: 'Inter_600SemiBold', fontWeight: '600', color: Colors.accent,
+    },
 });

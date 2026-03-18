@@ -1,5 +1,5 @@
 /**
- * Signup Screen — Firebase Auth connected with auto-claim
+ * Signup Screen — Firebase Auth connected, dark mode support
  */
 
 import React, { useState } from 'react';
@@ -13,32 +13,34 @@ import {
     ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { Colors, Spacing, Radius, Typography, Shadows, Layout, Animation } from '@/constants/theme';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, withSequence } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/contexts/auth-context';
+import { useTheme } from '@/contexts/theme-context';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 type Role = 'viewer' | 'creator' | 'brand';
 
-const ROLES: { key: Role; title: string; desc: string; icon: keyof typeof Ionicons.glyphMap; color: string }[] = [
-    { key: 'viewer', title: 'Viewer', desc: 'Watch, vote, and discover gems', icon: 'eye', color: Colors.info },
-    { key: 'creator', title: 'Creator', desc: 'Upload videos and grow your channel', icon: 'videocam', color: Colors.primary },
-    { key: 'brand', title: 'Brand', desc: 'Create campaigns and sponsor creators', icon: 'briefcase', color: Colors.accent },
+const ROLES: { key: Role; title: string; desc: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+    { key: 'viewer', title: 'Viewer', desc: 'Explore spots', icon: 'eye' },
+    { key: 'creator', title: 'Creator', desc: 'Share gems', icon: 'compass' },
+    { key: 'brand', title: 'Brand', desc: 'Partner up', icon: 'handshake-outline' as any },
 ];
 
 export default function SignupScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { signUp } = useAuth();
-    const [role, setRole] = useState<Role>('viewer');
+    const { isDark, colors } = useTheme();
+    const [role, setRole] = useState<Role>('creator');
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [channelUrl, setChannelUrl] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
@@ -78,61 +80,77 @@ export default function SignupScreen() {
         }
     };
 
+    const bgColor = colors.background;
+    const inputBg = isDark ? colors.cardElevated : Colors.white;
+    const inputBorder = isDark ? colors.border : Colors.borderLight;
+    const textColor = colors.text;
+    const mutedColor = colors.textMuted;
+
     return (
-        <View style={[styles.screen, { paddingTop: insets.top }]}>
+        <View style={[styles.screen, { paddingTop: insets.top, backgroundColor: bgColor }]}>
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
                 {/* Header */}
                 <View style={styles.headerRow}>
-                    <Pressable onPress={() => router.back()} style={styles.closeBtn}>
-                        <Ionicons name="arrow-back" size={22} color={Colors.textPrimaryDark} />
+                    <Pressable onPress={() => router.back()} style={styles.backBtn}>
+                        <Ionicons name="arrow-back" size={22} color={textColor} />
                     </Pressable>
+                    <Text style={[styles.headerTitle, { color: textColor }]}>Create Account</Text>
+                    <View style={{ width: 48 }} />
                 </View>
 
-                <Text style={styles.title}>Create Account</Text>
-                <Text style={styles.subtitle}>Join the GemSpots community 💎</Text>
+                {/* Heading */}
+                <Text style={[styles.title, { color: textColor }]}>Join GemSpots</Text>
+                <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+                    Select your account type and fill in your details to start discovering gems.
+                </Text>
 
-                {/* Role Selection */}
-                <Text style={styles.sectionLabel}>I am a...</Text>
+                {/* Account Type Cards */}
                 <View style={styles.roleRow}>
-                    {ROLES.map((r) => (
-                        <Pressable
-                            key={r.key}
-                            style={[styles.roleCard, role === r.key && styles.roleCardActive, role === r.key && { borderColor: r.color }]}
-                            onPress={() => setRole(r.key)}
-                        >
-                            <View style={[styles.roleIcon, { backgroundColor: r.color + '20' }]}>
-                                <Ionicons name={r.icon} size={22} color={r.color} />
-                            </View>
-                            <Text style={[styles.roleTitle, role === r.key && { color: r.color }]}>{r.title}</Text>
-                            <Text style={styles.roleDesc}>{r.desc}</Text>
-                            {role === r.key && (
-                                <View style={[styles.roleCheck, { backgroundColor: r.color }]}>
-                                    <Ionicons name="checkmark" size={12} color={Colors.white} />
+                    {ROLES.map((r) => {
+                        const isActive = role === r.key;
+                        return (
+                            <Pressable
+                                key={r.key}
+                                style={styles.roleCard}
+                                onPress={() => setRole(r.key)}
+                            >
+                                <View style={[
+                                    styles.roleIconContainer,
+                                    { backgroundColor: isDark ? colors.cardElevated : Colors.cardLightElevated },
+                                    isActive && styles.roleIconActive,
+                                ]}>
+                                    <Ionicons
+                                        name={r.icon}
+                                        size={28}
+                                        color={isActive ? Colors.accent : mutedColor}
+                                    />
                                 </View>
-                            )}
-                        </Pressable>
-                    ))}
+                                <Text style={[styles.roleTitle, { color: isActive ? textColor : colors.textSecondary }]}>{r.title}</Text>
+                                <Text style={[styles.roleDesc, { color: mutedColor }]}>{r.desc}</Text>
+                            </Pressable>
+                        );
+                    })}
                 </View>
 
-                {/* Form */}
+                {/* Form Fields */}
                 <View style={styles.form}>
-                    <View style={styles.inputContainer}>
-                        <Ionicons name="person-outline" size={18} color={Colors.textMutedDark} />
+                    <View>
+                        <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Full Name</Text>
                         <TextInput
-                            style={styles.input}
-                            placeholder="Full name"
-                            placeholderTextColor={Colors.textMutedDark}
+                            style={[styles.input, { backgroundColor: inputBg, borderColor: inputBorder, color: textColor }]}
+                            placeholder="Enter your full name"
+                            placeholderTextColor={mutedColor}
                             value={name}
                             onChangeText={setName}
                         />
                     </View>
 
-                    <View style={styles.inputContainer}>
-                        <Ionicons name="mail-outline" size={18} color={Colors.textMutedDark} />
+                    <View>
+                        <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Email</Text>
                         <TextInput
-                            style={styles.input}
-                            placeholder="Email address"
-                            placeholderTextColor={Colors.textMutedDark}
+                            style={[styles.input, { backgroundColor: inputBg, borderColor: inputBorder, color: textColor }]}
+                            placeholder="you@example.com"
+                            placeholderTextColor={mutedColor}
                             value={email}
                             onChangeText={setEmail}
                             keyboardType="email-address"
@@ -140,109 +158,149 @@ export default function SignupScreen() {
                         />
                     </View>
 
-                    <View style={styles.inputContainer}>
-                        <Ionicons name="lock-closed-outline" size={18} color={Colors.textMutedDark} />
-                        <TextInput
-                            style={styles.input}
-                            placeholder="Password"
-                            placeholderTextColor={Colors.textMutedDark}
-                            value={password}
-                            onChangeText={setPassword}
-                            secureTextEntry
-                        />
+                    <View>
+                        <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Password</Text>
+                        <View style={[styles.passwordContainer, { backgroundColor: inputBg, borderColor: inputBorder }]}>
+                            <TextInput
+                                style={[styles.input, { flex: 1, borderWidth: 0, color: textColor }]}
+                                placeholder="••••••••"
+                                placeholderTextColor={mutedColor}
+                                value={password}
+                                onChangeText={setPassword}
+                                secureTextEntry={!showPassword}
+                            />
+                            <Pressable
+                                onPress={() => setShowPassword(!showPassword)}
+                                style={styles.eyeBtn}
+                            >
+                                <Ionicons
+                                    name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                                    size={18}
+                                    color={mutedColor}
+                                />
+                            </Pressable>
+                        </View>
                     </View>
 
                     {role === 'creator' && (
-                        <View style={styles.inputContainer}>
-                            <Ionicons name="logo-youtube" size={18} color={Colors.error} />
+                        <View>
+                            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>YouTube Channel URL</Text>
                             <TextInput
-                                style={styles.input}
-                                placeholder="YouTube channel URL"
-                                placeholderTextColor={Colors.textMutedDark}
+                                style={[styles.input, { backgroundColor: inputBg, borderColor: inputBorder, color: textColor }]}
+                                placeholder="https://youtube.com/@yourchannel"
+                                placeholderTextColor={mutedColor}
                                 value={channelUrl}
                                 onChangeText={setChannelUrl}
                                 autoCapitalize="none"
                             />
                         </View>
                     )}
+                </View>
 
-                    {error ? <Text style={styles.errorText}>{error}</Text> : null}
+                {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
+                {/* CTA */}
+                <View style={styles.ctaSection}>
                     <AnimatedPressable style={[styles.signupBtn, btnAnimStyle]} onPress={handleSignup}>
-                        <LinearGradient
-                            colors={Colors.gradientPrimary}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 0 }}
-                            style={styles.signupGradient}
-                        >
-                            {loading ? (
-                                <ActivityIndicator color={Colors.white} />
-                            ) : (
-                                <>
-                                    <Text style={styles.signupText}>Create Account</Text>
-                                    <Ionicons name="arrow-forward" size={18} color={Colors.white} />
-                                </>
-                            )}
-                        </LinearGradient>
+                        {loading ? (
+                            <ActivityIndicator color={Colors.white} />
+                        ) : (
+                            <Text style={styles.signupBtnText}>Create Account</Text>
+                        )}
                     </AnimatedPressable>
+
+                    <View style={styles.loginRow}>
+                        <Text style={[styles.loginText, { color: mutedColor }]}>Already have an account? </Text>
+                        <Pressable onPress={() => router.push('/auth/login')}>
+                            <Text style={styles.loginLink}>Log in</Text>
+                        </Pressable>
+                    </View>
                 </View>
 
-                {/* Login Link */}
-                <View style={styles.loginRow}>
-                    <Text style={styles.loginText}>Already have an account? </Text>
-                    <Pressable onPress={() => router.push('/auth/login')}>
-                        <Text style={styles.loginLink}>Sign In</Text>
-                    </Pressable>
+                {/* Terms */}
+                <View style={styles.termsSection}>
+                    <Text style={[styles.termsText, { color: mutedColor }]}>
+                        By signing up, you agree to our{' '}
+                        <Text style={styles.termsLink}>Terms of Service</Text> and{' '}
+                        <Text style={styles.termsLink}>Privacy Policy</Text>.
+                    </Text>
                 </View>
-
-                <View style={{ height: Spacing.xl }} />
             </ScrollView>
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    screen: { flex: 1, backgroundColor: Colors.backgroundDark },
-    scrollContent: { paddingHorizontal: Layout.screenPadding + Spacing.sm },
-    headerRow: { marginBottom: Spacing.md },
-    closeBtn: { width: 40, height: 40, borderRadius: Radius.full, justifyContent: 'center', alignItems: 'center' },
-    title: { ...Typography.screenTitle, color: Colors.textPrimaryDark, fontSize: 28 },
-    subtitle: { ...Typography.body, color: Colors.textSecondaryDark, marginTop: Spacing.xs, marginBottom: Spacing.lg },
-    sectionLabel: { ...Typography.cardTitle, color: Colors.textPrimaryDark, marginBottom: Spacing.sm },
-    roleRow: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.lg },
-    roleCard: {
-        flex: 1, backgroundColor: Colors.cardDark, borderRadius: Radius.lg,
-        padding: Spacing.sm + 4, alignItems: 'center', gap: 6,
-        borderWidth: 1.5, borderColor: Colors.borderDark, position: 'relative',
+    screen: { flex: 1 },
+    scrollContent: { paddingBottom: Spacing['3xl'] },
+    headerRow: {
+        flexDirection: 'row', alignItems: 'center',
+        paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm,
     },
-    roleCardActive: { backgroundColor: Colors.cardDarkElevated },
-    roleIcon: {
-        width: 44, height: 44, borderRadius: Radius.full,
+    backBtn: { width: 48, height: 48, justifyContent: 'center', alignItems: 'center' },
+    headerTitle: {
+        flex: 1, textAlign: 'center', fontSize: 17,
+        fontFamily: 'Inter_600SemiBold', fontWeight: '600', letterSpacing: -0.3,
+    },
+    title: {
+        fontSize: 30, fontFamily: 'Inter_700Bold', fontWeight: '700',
+        paddingHorizontal: Spacing.md, paddingTop: Spacing.lg, letterSpacing: -0.5,
+    },
+    subtitle: {
+        fontSize: 15, fontFamily: 'Inter_400Regular',
+        paddingHorizontal: Spacing.md, paddingTop: Spacing.xs,
+        paddingBottom: Spacing.md, lineHeight: 22,
+    },
+    roleRow: {
+        flexDirection: 'row', gap: Spacing.sm,
+        paddingHorizontal: Spacing.md, marginBottom: Spacing.lg,
+    },
+    roleCard: { flex: 1, gap: Spacing.sm, paddingBottom: Spacing.sm },
+    roleIconContainer: {
+        width: '100%', aspectRatio: 1, borderRadius: Radius.md,
         justifyContent: 'center', alignItems: 'center',
+        borderWidth: 2, borderColor: 'transparent',
     },
-    roleTitle: { ...Typography.cardTitle, color: Colors.textPrimaryDark, fontSize: 14 },
-    roleDesc: { ...Typography.caption, color: Colors.textMutedDark, textAlign: 'center', fontSize: 10 },
-    roleCheck: {
-        position: 'absolute', top: 6, right: 6,
-        width: 20, height: 20, borderRadius: 10,
+    roleIconActive: { borderColor: Colors.accent, backgroundColor: Colors.accent + '10' },
+    roleTitle: { fontSize: 14, fontFamily: 'Inter_600SemiBold', fontWeight: '600' },
+    roleDesc: { fontSize: 12, fontFamily: 'Inter_400Regular' },
+    form: { gap: Spacing.lg, paddingHorizontal: Spacing.md },
+    inputLabel: {
+        fontSize: 13, fontFamily: 'Inter_500Medium', fontWeight: '500',
+        marginBottom: Spacing.sm,
+    },
+    input: {
+        borderRadius: Radius.md, borderWidth: 1, height: 56,
+        paddingHorizontal: Spacing.md, fontSize: 15, fontFamily: 'Inter_400Regular',
+    },
+    passwordContainer: {
+        flexDirection: 'row', alignItems: 'center',
+        borderRadius: Radius.md, borderWidth: 1, paddingRight: Spacing.sm,
+    },
+    eyeBtn: { padding: Spacing.sm },
+    errorText: {
+        fontSize: 13, fontFamily: 'Inter_400Regular', color: Colors.error,
+        textAlign: 'center', marginTop: Spacing.md, paddingHorizontal: Spacing.md,
+    },
+    ctaSection: { paddingHorizontal: Spacing.md, paddingTop: Spacing.lg },
+    signupBtn: {
+        backgroundColor: Colors.accent, borderRadius: Radius.md, height: 56,
         justifyContent: 'center', alignItems: 'center',
+        ...Shadows.glow(Colors.accent),
     },
-    form: { gap: Spacing.md },
-    inputContainer: {
-        flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
-        backgroundColor: Colors.cardDark, borderRadius: Radius.md,
-        paddingHorizontal: Spacing.md, height: Layout.inputHeight + 4,
-        borderWidth: 1, borderColor: Colors.borderDark,
+    signupBtnText: {
+        fontSize: 17, fontFamily: 'Inter_700Bold', fontWeight: '700', color: Colors.white,
     },
-    input: { flex: 1, ...Typography.body, color: Colors.textPrimaryDark },
-    signupBtn: { borderRadius: Radius.md, overflow: 'hidden', ...Shadows.glow(Colors.primary), marginTop: Spacing.sm },
-    signupGradient: {
-        flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-        gap: Spacing.sm, height: Layout.buttonHeight + 4,
-    },
-    signupText: { ...Typography.button, color: Colors.white, fontSize: 16 },
-    errorText: { ...Typography.caption, color: Colors.error, textAlign: 'center', marginTop: Spacing.xs },
     loginRow: { flexDirection: 'row', justifyContent: 'center', marginTop: Spacing.lg },
-    loginText: { ...Typography.body, color: Colors.textSecondaryDark },
-    loginLink: { ...Typography.body, color: Colors.primary, fontWeight: '600' },
+    loginText: { fontSize: 14, fontFamily: 'Inter_400Regular' },
+    loginLink: {
+        fontSize: 14, fontFamily: 'Inter_600SemiBold', fontWeight: '600', color: Colors.accent,
+    },
+    termsSection: {
+        paddingHorizontal: Spacing.xl + Spacing.md, paddingTop: Spacing.xl, paddingBottom: Spacing.lg,
+    },
+    termsText: {
+        fontSize: 11, fontFamily: 'Inter_400Regular', textAlign: 'center', lineHeight: 16,
+    },
+    termsLink: { textDecorationLine: 'underline' },
 });

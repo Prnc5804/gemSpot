@@ -7,37 +7,39 @@ import { Platform } from 'react-native';
 
 // ─── Semantic Color Palette ────────────────────────────────────────────────
 export const Colors = {
-  primary: '#10B981',
-  primaryLight: '#34D399',
-  primaryDark: '#059669',
+  // Primary: Lavender for community/discovery
+  primary: '#aca0bb',
+  primaryLight: '#c4b9d1',
+  primaryDark: '#8e7fa3',
 
-  accent: '#F59E0B',
-  accentLight: '#FBBF24',
-  accentDark: '#D97706',
+  // Accent: Coral for auth/actions
+  accent: '#ef8354',
+  accentLight: '#f4a27a',
+  accentDark: '#d96d3e',
 
   success: '#22C55E',
   warning: '#F59E0B',
   error: '#EF4444',
   info: '#3B82F6',
 
-  // Dark mode
-  backgroundDark: '#0F172A',
-  surfaceDark: '#1E293B',
-  cardDark: '#1E293B',
-  cardDarkElevated: '#273548',
-  borderDark: '#334155',
+  // Dark mode (adapted to new palette)
+  backgroundDark: '#1a1520',
+  surfaceDark: '#2a2233',
+  cardDark: '#2a2233',
+  cardDarkElevated: '#352d40',
+  borderDark: '#3d3548',
   textPrimaryDark: '#F1F5F9',
   textSecondaryDark: '#94A3B8',
   textMutedDark: '#64748B',
 
-  // Light mode
-  backgroundLight: '#F8FAFC',
+  // Light mode (pink-tinted, warm)
+  backgroundLight: '#f7ebec',
   surfaceLight: '#FFFFFF',
   cardLight: '#FFFFFF',
-  cardLightElevated: '#F1F5F9',
-  borderLight: '#E2E8F0',
-  textPrimaryLight: '#0F172A',
-  textSecondaryLight: '#475569',
+  cardLightElevated: '#f3eef4',
+  borderLight: 'rgba(0, 0, 0, 0.05)',
+  textPrimaryLight: '#1a1a1a',
+  textSecondaryLight: '#525252',
   textMutedLight: '#94A3B8',
 
   // Universal
@@ -47,20 +49,20 @@ export const Colors = {
   overlayLight: 'rgba(0, 0, 0, 0.3)',
 
   // Gradients (as arrays for LinearGradient)
-  gradientPrimary: ['#10B981', '#059669'] as const,
-  gradientAccent: ['#F59E0B', '#D97706'] as const,
-  gradientDark: ['#0F172A', '#1E293B'] as const,
-  gradientCard: ['rgba(30, 41, 59, 0.8)', 'rgba(15, 23, 42, 0.95)'] as const,
-  gradientGem: ['#10B981', '#3B82F6'] as const,
+  gradientPrimary: ['#aca0bb', '#8e7fa3'] as const,
+  gradientAccent: ['#ef8354', '#d96d3e'] as const,
+  gradientDark: ['#1a1520', '#2a2233'] as const,
+  gradientCard: ['rgba(255, 255, 255, 0.8)', 'rgba(255, 255, 255, 0.95)'] as const,
+  gradientGem: ['#aca0bb', '#7b6b8f'] as const,
   gradientFire: ['#EF4444', '#F59E0B'] as const,
   gradientGold: ['#F59E0B', '#EAB308', '#CA8A04'] as const,
   gradientSilver: ['#94A3B8', '#CBD5E1', '#94A3B8'] as const,
   gradientBronze: ['#D97706', '#B45309', '#D97706'] as const,
 
-  // Tab bar
-  tabBarDark: 'rgba(15, 23, 42, 0.95)',
-  tabBarLight: 'rgba(255, 255, 255, 0.95)',
-  tabActiveIndicator: '#10B981',
+  // Tab bar (glassmorphism)
+  tabBarDark: 'rgba(26, 21, 32, 0.95)',
+  tabBarLight: 'rgba(255, 255, 255, 0.80)',
+  tabActiveIndicator: '#aca0bb',
 };
 
 // ─── Theme Presets (for useColorScheme) ────────────────────────────────────
@@ -163,44 +165,52 @@ export const Typography = {
   },
 } as const;
 
-// ─── Shadows ───────────────────────────────────────────────────────────────
+// ─── Shadows (Apple-style soft shadows) ────────────────────────────────────
 export const Shadows = {
   sm: {
     elevation: 2,
     shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
   },
   md: {
     elevation: 4,
     shadowColor: '#000',
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
   },
   lg: {
     elevation: 8,
     shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
+    shadowOpacity: 0.08,
+    shadowRadius: 20,
     shadowOffset: { width: 0, height: 4 },
   },
   xl: {
     elevation: 12,
     shadowColor: '#000',
-    shadowOpacity: 0.2,
-    shadowRadius: 16,
+    shadowOpacity: 0.12,
+    shadowRadius: 24,
     shadowOffset: { width: 0, height: 6 },
+  },
+  // Apple-style card shadow
+  apple: {
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 4 },
   },
   glow: (color: string) => ({
     elevation: 8,
     shadowColor: color,
-    shadowOpacity: 0.4,
+    shadowOpacity: 0.3,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },
   }),
-} as const;
+};
 
 // ─── Animation Constants ───────────────────────────────────────────────────
 export const Animation = {
