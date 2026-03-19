@@ -1,6 +1,6 @@
 /**
  * Profile Screen — Real data from Firestore
- * Shows: Followers, Following, Posts, Streak
+ * Shows: Subscriptions, Posts, Streak
  * Badges from badge-service (no mock data)
  */
 
@@ -169,14 +169,9 @@ export default function ProfileScreen() {
                 {/* ═══ STATS ROW ═══ */}
                 <View style={styles.statsRow}>
                     <View style={[styles.statBox, { backgroundColor: isDark ? colors.cardElevated : Colors.white }]}>
-                        <Ionicons name="people" size={20} color={Colors.primary} />
-                        <Text style={[styles.statValue, { color: colors.text }]}>{(user.followers ?? 0).toLocaleString()}</Text>
-                        <Text style={[styles.statLabel, { color: colors.textMuted }]}>Followers</Text>
-                    </View>
-                    <View style={[styles.statBox, { backgroundColor: isDark ? colors.cardElevated : Colors.white }]}>
                         <Ionicons name="person-add" size={20} color={Colors.primary} />
-                        <Text style={[styles.statValue, { color: colors.text }]}>{(user.following ?? 0).toLocaleString()}</Text>
-                        <Text style={[styles.statLabel, { color: colors.textMuted }]}>Following</Text>
+                        <Text style={[styles.statValue, { color: colors.text }]}>{(user.subscribedTo ?? []).length}</Text>
+                        <Text style={[styles.statLabel, { color: colors.textMuted }]}>Subscriptions</Text>
                     </View>
                     <View style={[styles.statBox, { backgroundColor: isDark ? colors.cardElevated : Colors.white }]}>
                         <Ionicons name="film" size={20} color={Colors.primary} />
@@ -192,16 +187,6 @@ export default function ProfileScreen() {
 
                 {/* ═══ QUICK LINKS ═══ */}
                 <View style={styles.quickLinks}>
-                    {user.role === 'creator' && (
-                        <Pressable
-                            style={[styles.quickLink, { backgroundColor: isDark ? colors.cardElevated : Colors.white }]}
-                            onPress={() => router.push('/creator-dashboard' as any)}
-                        >
-                            <Ionicons name="bar-chart" size={20} color={Colors.primary} />
-                            <Text style={[styles.quickLinkText, { color: colors.text }]}>Creator Dashboard</Text>
-                            <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
-                        </Pressable>
-                    )}
                 </View>
 
                 {/* ═══ BADGES ═══ */}

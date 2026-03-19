@@ -1,5 +1,6 @@
 /**
  * Root Layout — Auth-gated: shows welcome screen unless logged in
+ * Role-based routing: creators → (creator-tabs), viewers → (tabs)
  * Wrapped with AppThemeProvider for dark/light mode
  */
 
@@ -24,7 +25,7 @@ export const unstable_settings = {
 };
 
 function AuthGate() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
   const segments = useSegments();
   const router = useRouter();
 
@@ -37,8 +38,12 @@ function AuthGate() {
       // Not logged in and trying to access protected route → redirect to welcome
       router.replace('/welcome' as any);
     } else if (isAuthenticated && inAuthGroup) {
-      // Logged in but on auth/welcome screen → go to tabs
-      router.replace('/(tabs)' as any);
+      // Logged in but on auth/welcome screen → route based on role
+      if (user?.role === 'creator') {
+        router.replace('/(creator-tabs)' as any);
+      } else {
+        router.replace('/(tabs)' as any);
+      }
     }
   }, [isAuthenticated, isLoading, segments]);
 
@@ -62,12 +67,12 @@ function InnerLayout() {
       <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
         <Stack.Screen name="welcome" options={{ animation: 'fade' }} />
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="(creator-tabs)" />
         <Stack.Screen
           name="video/[id]"
           options={{ animation: 'slide_from_bottom', presentation: 'card' }}
         />
         <Stack.Screen name="creator/[id]" />
-        <Stack.Screen name="creator-dashboard" />
         <Stack.Screen name="brand-deals" />
         <Stack.Screen name="shop" />
         <Stack.Screen

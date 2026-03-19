@@ -9,7 +9,7 @@ import { useAuth } from '@/contexts/auth-context';
 import { useTheme } from '@/contexts/theme-context';
 import { addComment, getComments } from '@/services/comment-service';
 import { db } from '@/services/firebase';
-import { isFollowing as checkIsFollowing, followUser, unfollowUser } from '@/services/follow-service';
+import { isSubscribed as checkIsSubscribed, subscribeToCreator, unsubscribeFromCreator } from '@/services/subscribe-service';
 import { incrementVoteCount } from '@/services/user-service';
 import { viewVideo, voteVideo } from '@/services/video-service';
 import { Ionicons } from '@expo/vector-icons';
@@ -61,7 +61,7 @@ export default function VideoDetailScreen() {
     const [voteCount, setVoteCount] = useState(0);
     const [comment, setComment] = useState('');
     const [comments, setComments] = useState<CommentType[]>([]);
-    const [following, setFollowing] = useState(false);
+    const [subscribed, setSubscribed] = useState(false);
     const [isSaved, setIsSaved] = useState(false);
     const [nextVideo, setNextVideo] = useState<Video | null>(null);
     const [isPlaying, setIsPlaying] = useState(false);
@@ -102,6 +102,11 @@ export default function VideoDetailScreen() {
                 if (user?.id && data.voters?.includes(user.id)) {
                     setVoted(true);
                 }
+                // Check subscribe status
+                if (user?.id && data.creatorId) {
+                    const isSub = await checkIsSubscribed(user.id, data.creatorId);
+                    setSubscribed(isSub);
+                }
                 // Record view
                 await viewVideo(id!);
             } else {
@@ -113,12 +118,6 @@ export default function VideoDetailScreen() {
                 const realComments = await getComments(id!);
                 setComments(realComments);
             } catch { }
-
-            // Check follow status
-            if (user?.id && video?.creatorId) {
-                const isFollow = await checkIsFollowing(user.id, video.creatorId);
-                setFollowing(isFollow);
-            }
 
             // Load "next" recommendation
             const nextQuery = query(collection(db, 'videos'), orderBy('createdAt', 'desc'), limit(5));
@@ -201,14 +200,25 @@ export default function VideoDetailScreen() {
         }
     };
 
-    const handleFollow = async () => {
+    const handleSubscribe = async () => {
         if (!isAuthenticated || !user || !video?.creatorId) return;
-        if (following) {
-            setFollowing(false);
-            await unfollowUser(user.id, video.creatorId);
-        } else {
-            setFollowing(true);
-            await followUser(user.id, video.creatorId);
+        const wasSubscribed = subscribed;
+        // Optimistic UI update
+        setSubscribed(!wasSubscribed);
+        try {
+            if (wasSubscribed) {
+                const result = await unsubscribeFromCreator(user.id, video.creatorId);
+                if (!result.success) throw new Error(result.error);
+            } else {
+                const result = await subscribeToCreator(user.id, video.creatorId);
+                if (!result.success) throw new Error(result.error);
+            }
+            // Refresh auth context so subscribedTo stays in sync
+            await refreshUser();
+        } catch (error) {
+            // Rollback on failure
+            setSubscribed(wasSubscribed);
+            console.log('Subscribe action failed:', error);
         }
     };
 
@@ -380,11 +390,11 @@ export default function VideoDetailScreen() {
                             <Text style={[styles.creatorSubs, { color: colors.textSecondary }]}>{(video.subscriberCount || 0).toLocaleString()} subscribers</Text>
                         </View>
                         <Pressable
-                            style={[styles.followBtn, following && styles.followBtnActive]}
-                            onPress={handleFollow}
+                            style={[styles.followBtn, subscribed && styles.followBtnActive]}
+                            onPress={handleSubscribe}
                         >
-                            <Text style={[styles.followText, following && styles.followTextActive]}>
-                                {following ? 'Following' : 'Follow'}
+                            <Text style={[styles.followText, subscribed && styles.followTextActive]}>
+                                {subscribed ? 'Subscribed' : 'Subscribe'}
                             </Text>
                         </Pressable>
                     </View>

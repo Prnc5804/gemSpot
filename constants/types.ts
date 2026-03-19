@@ -93,10 +93,23 @@ export interface User {
     votesToday: number;
     maxVotesPerDay: number;
     joinedAt: string;
-    followers: number;
-    following: number;
+    subscribers: string[];    // userIds who subscribe to this user
+    subscribedTo: string[];   // creatorIds this user subscribes to
     posts: number;
     lastActiveDate?: string;
+    bio?: string;
+    profileCategory?: Category;
+}
+
+export interface CreatorStats {
+    totalViews: number;
+    totalLikes: number;
+    totalComments: number;
+    totalVideos: number;
+    subscribers: number;
+    bestVideoId: string;
+    bestVideoTitle: string;
+    lastUpdated: any;
 }
 
 export interface Comment {

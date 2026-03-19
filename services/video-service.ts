@@ -20,6 +20,7 @@ import {
     where,
 } from 'firebase/firestore';
 import { getOrCreateCreator } from './creator-service';
+import { incrementCreatorStat } from './creator-stats-service';
 import { db } from './firebase';
 import { fetchVideoInfo, isEligible } from './youtube-service';
 
@@ -115,6 +116,9 @@ export async function submitVideo(input: SubmitVideoInput): Promise<SubmitResult
             });
         } catch (_) { /* user doc may not exist for anonymous */ }
 
+        // Update aggregated creator stats
+        await incrementCreatorStat(input.submittedBy, 'totalVideos', 1);
+
         return {
             success: true,
             videoId: videoRef.id,
@@ -152,6 +156,10 @@ export async function voteVideo(videoId: string, userId: string): Promise<{ succ
                 totalVotes: increment(-1),
             });
         }
+        // Update aggregated creator stats
+        if (videoData?.submittedBy) {
+            await incrementCreatorStat(videoData.submittedBy, 'totalLikes', -1);
+        }
         return { success: true, newCount: (videoData?.voteCount || 1) - 1 };
     } else {
         await updateDoc(videoRef, {
@@ -162,6 +170,10 @@ export async function voteVideo(videoId: string, userId: string): Promise<{ succ
             await updateDoc(doc(db, 'creators', videoData.creatorId), {
                 totalVotes: increment(1),
             });
+        }
+        // Update aggregated creator stats
+        if (videoData?.submittedBy) {
+            await incrementCreatorStat(videoData.submittedBy, 'totalLikes', 1);
         }
         return { success: true, newCount: (videoData?.voteCount || 0) + 1 };
     }
@@ -260,6 +272,11 @@ export async function deleteVideo(videoId: string, userId: string): Promise<{ su
             } catch (_) { /* creator may not exist */ }
         }
 
+        // Decrement aggregated creator stats
+        if (videoData?.submittedBy) {
+            await incrementCreatorStat(videoData.submittedBy, 'totalVideos', -1);
+        }
+
         const { deleteDoc: firestoreDeleteDoc } = await import('firebase/firestore');
         await firestoreDeleteDoc(videoRef);
 
@@ -278,6 +295,11 @@ export async function viewVideo(videoId: string): Promise<void> {
         await updateDoc(videoRef, {
             viewsFromPlatform: increment(1),
         });
+        // Update aggregated creator stats
+        const videoSnap = await getDoc(videoRef);
+        if (videoSnap.exists() && videoSnap.data()?.submittedBy) {
+            await incrementCreatorStat(videoSnap.data().submittedBy, 'totalViews', 1);
+        }
     } catch (error) {
         console.log('Failed to record view:', error);
     }

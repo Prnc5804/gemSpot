@@ -6,6 +6,7 @@ import { db } from './firebase';
 import {
     collection,
     doc,
+    getDoc,
     setDoc,
     getDocs,
     updateDoc,
@@ -15,6 +16,7 @@ import {
     serverTimestamp,
 } from 'firebase/firestore';
 import type { Comment } from '@/constants/types';
+import { incrementCreatorStat } from './creator-stats-service';
 
 /**
  * Add a comment to a video
@@ -43,6 +45,14 @@ export async function addComment(
     await updateDoc(doc(db, 'videos', videoId), {
         commentCount: increment(1),
     });
+
+    // Update aggregated creator stats
+    try {
+        const videoSnap = await getDoc(doc(db, 'videos', videoId));
+        if (videoSnap.exists() && videoSnap.data()?.submittedBy) {
+            await incrementCreatorStat(videoSnap.data().submittedBy, 'totalComments', 1);
+        }
+    } catch (_) { /* ignore */ }
 
     return comment as Comment;
 }

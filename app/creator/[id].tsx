@@ -9,7 +9,7 @@ import type { Video } from '@/constants/types';
 import { useAuth } from '@/contexts/auth-context';
 import { useTheme } from '@/contexts/theme-context';
 import { db } from '@/services/firebase';
-import { isFollowing as checkIsFollowing, followUser, unfollowUser } from '@/services/follow-service';
+import { isSubscribed as checkIsSubscribed, subscribeToCreator, unsubscribeFromCreator } from '@/services/subscribe-service';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { collection, doc, getDoc, getDocs, orderBy, query, where } from 'firebase/firestore';
@@ -43,12 +43,12 @@ export default function CreatorProfileScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { isDark, colors } = useTheme();
-    const { user } = useAuth();
+    const { user, refreshUser } = useAuth();
 
     const [loading, setLoading] = useState(true);
     const [creator, setCreator] = useState<CreatorData | null>(null);
     const [creatorVideos, setCreatorVideos] = useState<Video[]>([]);
-    const [following, setFollowing] = useState(false);
+    const [subscribed, setSubscribed] = useState(false);
 
     useEffect(() => {
         fetchCreator();
@@ -72,10 +72,10 @@ export default function CreatorProfileScreen() {
                 const videosSnap = await getDocs(videosQ);
                 setCreatorVideos(videosSnap.docs.map((d: any) => ({ ...d.data(), id: d.id })) as Video[]);
 
-                // Check follow status
+                // Check subscribe status
                 if (user?.id) {
-                    const isFollow = await checkIsFollowing(user.id, id!);
-                    setFollowing(isFollow);
+                    const isSub = await checkIsSubscribed(user.id, id!);
+                    setSubscribed(isSub);
                 }
             } else {
                 setCreator(null);
@@ -88,14 +88,25 @@ export default function CreatorProfileScreen() {
         }
     };
 
-    const handleFollow = async () => {
+    const handleSubscribe = async () => {
         if (!user?.id || !id) return;
-        if (following) {
-            setFollowing(false);
-            await unfollowUser(user.id, id);
-        } else {
-            setFollowing(true);
-            await followUser(user.id, id);
+        const wasSubscribed = subscribed;
+        // Optimistic UI update
+        setSubscribed(!wasSubscribed);
+        try {
+            if (wasSubscribed) {
+                const result = await unsubscribeFromCreator(user.id, id);
+                if (!result.success) throw new Error(result.error);
+            } else {
+                const result = await subscribeToCreator(user.id, id);
+                if (!result.success) throw new Error(result.error);
+            }
+            // Refresh auth context so subscribedTo stays in sync
+            await refreshUser();
+        } catch (error) {
+            // Rollback on failure
+            setSubscribed(wasSubscribed);
+            console.log('Subscribe action failed:', error);
         }
     };
 
@@ -146,16 +157,16 @@ export default function CreatorProfileScreen() {
                     {/* Follow Button */}
                     {user?.id && user.id !== creator.userId && (
                         <Pressable
-                            style={[styles.followBtn, following && styles.followBtnActive]}
-                            onPress={handleFollow}
+                            style={[styles.followBtn, subscribed && styles.followBtnActive]}
+                            onPress={handleSubscribe}
                         >
                             <Ionicons
-                                name={following ? 'checkmark' : 'person-add'}
+                                name={subscribed ? 'checkmark' : 'person-add'}
                                 size={16}
-                                color={following ? Colors.white : Colors.primary}
+                                color={subscribed ? Colors.white : Colors.primary}
                             />
-                            <Text style={[styles.followBtnText, following && styles.followBtnTextActive]}>
-                                {following ? 'Following' : 'Follow'}
+                            <Text style={[styles.followBtnText, subscribed && styles.followBtnTextActive]}>
+                                {subscribed ? 'Subscribed' : 'Subscribe'}
                             </Text>
                         </Pressable>
                     )}
