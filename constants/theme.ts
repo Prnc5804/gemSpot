@@ -7,39 +7,39 @@ import { Platform } from 'react-native';
 
 // ─── Semantic Color Palette ────────────────────────────────────────────────
 export const Colors = {
-  // Primary: Lavender for community/discovery
-  primary: '#aca0bb',
-  primaryLight: '#c4b9d1',
-  primaryDark: '#8e7fa3',
+  // Primary: Vibrant Violet for community/discovery
+  primary: '#7C3AED',
+  primaryLight: '#A78BFA',
+  primaryDark: '#5B21B6',
 
-  // Accent: Coral for auth/actions
-  accent: '#ef8354',
-  accentLight: '#f4a27a',
-  accentDark: '#d96d3e',
+  // Accent: Warm Amber for auth/actions
+  accent: '#F59E0B',
+  accentLight: '#FCD34D',
+  accentDark: '#D97706',
 
   success: '#22C55E',
   warning: '#F59E0B',
   error: '#EF4444',
   info: '#3B82F6',
 
-  // Dark mode (adapted to new palette)
-  backgroundDark: '#1a1520',
-  surfaceDark: '#2a2233',
-  cardDark: '#2a2233',
-  cardDarkElevated: '#352d40',
-  borderDark: '#3d3548',
+  // Dark mode (deep purple-tinted)
+  backgroundDark: '#0F0A1A',
+  surfaceDark: '#1A1128',
+  cardDark: '#1A1128',
+  cardDarkElevated: '#261B38',
+  borderDark: '#2E2145',
   textPrimaryDark: '#F1F5F9',
-  textSecondaryDark: '#94A3B8',
+  textSecondaryDark: '#A5B4CB',
   textMutedDark: '#64748B',
 
-  // Light mode (pink-tinted, warm)
-  backgroundLight: '#f7ebec',
+  // Light mode (cool off-white with subtle violet warmth)
+  backgroundLight: '#FAF7FF',
   surfaceLight: '#FFFFFF',
   cardLight: '#FFFFFF',
-  cardLightElevated: '#f3eef4',
-  borderLight: 'rgba(0, 0, 0, 0.05)',
-  textPrimaryLight: '#1a1a1a',
-  textSecondaryLight: '#525252',
+  cardLightElevated: '#F3EEFF',
+  borderLight: 'rgba(124, 58, 237, 0.06)',
+  textPrimaryLight: '#1A1033',
+  textSecondaryLight: '#4A4458',
   textMutedLight: '#94A3B8',
 
   // Universal
@@ -49,20 +49,20 @@ export const Colors = {
   overlayLight: 'rgba(0, 0, 0, 0.3)',
 
   // Gradients (as arrays for LinearGradient)
-  gradientPrimary: ['#aca0bb', '#8e7fa3'] as const,
-  gradientAccent: ['#ef8354', '#d96d3e'] as const,
-  gradientDark: ['#1a1520', '#2a2233'] as const,
+  gradientPrimary: ['#7C3AED', '#5B21B6'] as const,
+  gradientAccent: ['#F59E0B', '#D97706'] as const,
+  gradientDark: ['#0F0A1A', '#1A1128'] as const,
   gradientCard: ['rgba(255, 255, 255, 0.8)', 'rgba(255, 255, 255, 0.95)'] as const,
-  gradientGem: ['#aca0bb', '#7b6b8f'] as const,
+  gradientGem: ['#7C3AED', '#4C1D95'] as const,
   gradientFire: ['#EF4444', '#F59E0B'] as const,
   gradientGold: ['#F59E0B', '#EAB308', '#CA8A04'] as const,
   gradientSilver: ['#94A3B8', '#CBD5E1', '#94A3B8'] as const,
   gradientBronze: ['#D97706', '#B45309', '#D97706'] as const,
 
   // Tab bar (glassmorphism)
-  tabBarDark: 'rgba(26, 21, 32, 0.95)',
-  tabBarLight: 'rgba(255, 255, 255, 0.80)',
-  tabActiveIndicator: '#aca0bb',
+  tabBarDark: 'rgba(15, 10, 26, 0.95)',
+  tabBarLight: 'rgba(255, 255, 255, 0.85)',
+  tabActiveIndicator: '#7C3AED',
 };
 
 // ─── Theme Presets (for useColorScheme) ────────────────────────────────────

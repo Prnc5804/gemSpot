@@ -181,8 +181,8 @@ export async function fetchChannelInfo(channelUrl: string): Promise<{
 }
 
 /**
- * Check if subscriber count is under 5K (eligible for GemSpots)
+ * Check if subscriber count is under 50K (eligible for GemSpots)
  */
 export function isEligible(subscriberCount: number): boolean {
-    return subscriberCount < 5000;
+    return subscriberCount < 50000;
 }

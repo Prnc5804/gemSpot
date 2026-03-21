@@ -54,7 +54,7 @@ export async function submitVideo(input: SubmitVideoInput): Promise<SubmitResult
         }
 
         if (!isEligible(videoInfo.subscriberCount)) {
-            return { success: false, error: 'Creator has more than 5K subscribers', subscriberCheck: 'fail' };
+            return { success: false, error: 'Creator has more than 50K subscribers', subscriberCheck: 'fail' };
         }
 
         const dupeQuery = query(
@@ -144,6 +144,12 @@ export async function voteVideo(videoId: string, userId: string): Promise<{ succ
     }
 
     const videoData = videoSnap.data();
+
+    // Block self-upvotes — creators cannot vote on their own videos
+    if (videoData?.submittedBy === userId) {
+        return { success: false, newCount: videoData?.voteCount || 0 };
+    }
+
     const voters: string[] = videoData?.voters || [];
 
     if (voters.includes(userId)) {
@@ -215,7 +221,7 @@ export async function getVideos(options?: {
 
     if (options?.subscriberRange) {
         const maxSubs: Record<string, number> = {
-            'Under 100': 100, 'Under 500': 500, 'Under 1K': 1000, 'Under 5K': 5000,
+            'Under 100': 100, 'Under 500': 500, 'Under 1K': 1000, 'Under 50K': 50000,
         };
         const max = maxSubs[options.subscriberRange];
         results = results.filter((v) => v.subscriberCount < max);

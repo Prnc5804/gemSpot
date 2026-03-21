@@ -92,10 +92,10 @@ export default function UploadScreen() {
                 setSubCheck('pass');
             } else {
                 setSubCheck('fail');
-                setVerifyError(`Creator has ${info.subscriberCount.toLocaleString()} subscribers. GemSpots is for creators under 5K subs.`);
+                setVerifyError(`Creator has ${info.subscriberCount.toLocaleString()} subscribers. GemSpots is for creators under 50K subs.`);
                 Alert.alert(
                     '⚠️ Not Eligible',
-                    `This creator has ${info.subscriberCount.toLocaleString()} subscribers.\n\nGemSpots is for creators under 5,000 subscribers.\n\nTry submitting another small creator instead! 💎`,
+                    `This creator has ${info.subscriberCount.toLocaleString()} subscribers.\n\nGemSpots is for creators under 50,000 subscribers.\n\nTry submitting another small creator instead! 💎`,
                 );
                 setIsVerifying(false);
                 return;
@@ -288,7 +288,7 @@ export default function UploadScreen() {
                     {/* Validation Indicators */}
                     {(subCheck !== 'idle' || dupCheck !== 'idle') && (
                         <View style={[styles.validationBox, { backgroundColor: cardBg, borderColor }]}>
-                            <ValidationRow label="Subscriber Count (< 5K)" status={subCheck} colors={colors} />
+                            <ValidationRow label="Subscriber Count (< 50K)" status={subCheck} colors={colors} />
                             {dupCheck !== 'idle' && <ValidationRow label="Duplicate Check" status={dupCheck} colors={colors} />}
                         </View>
                     )}

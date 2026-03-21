@@ -1,5 +1,5 @@
 /**
- * Welcome Screen — Onboarding / Landing Page, dark mode support
+ * Welcome Screen — Bold onboarding with tagline, gradient hero, minimal text
  */
 
 import React from 'react';
@@ -12,9 +12,10 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { Colors, Spacing, Radius, Typography, Shadows, Layout } from '@/constants/theme';
+import { Colors, Spacing, Radius, Shadows } from '@/constants/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/theme-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
     FadeInDown,
     FadeInUp,
@@ -27,147 +28,212 @@ export default function WelcomeScreen() {
     const insets = useSafeAreaInsets();
     const { isDark, colors } = useTheme();
 
-    const bgColor = colors.background;
-    const textColor = colors.text;
-    const cardBg = isDark ? colors.cardElevated : Colors.white;
+    const bgColor = isDark ? Colors.backgroundDark : '#FAF7FF';
 
     return (
         <View style={[styles.screen, { paddingTop: insets.top, paddingBottom: insets.bottom, backgroundColor: bgColor }]}>
-            {/* Header */}
-            <Animated.View entering={FadeInUp.delay(100).duration(600)} style={styles.header}>
-                <View style={styles.headerIcon}>
-                    <Text style={styles.headerIconText}>💎</Text>
-                </View>
-                <Text style={[styles.headerTitle, { color: textColor }]}>GEMSPOTS</Text>
-            </Animated.View>
 
-            {/* Hero Image Area */}
-            <Animated.View entering={FadeInUp.delay(200).duration(800)} style={styles.heroContainer}>
-                <View style={[styles.heroImage, { backgroundColor: isDark ? Colors.primary + '30' : Colors.primaryDark }]}>
-                    <View style={styles.heroGradient} />
-                </View>
-            </Animated.View>
-
-            {/* Heading */}
-            <Animated.View entering={FadeInDown.delay(400).duration(800)} style={styles.headingSection}>
-                <Text style={[styles.heading, { color: textColor }]}>
-                    Discover hidden{' '}
-                    <Text style={styles.headingAccent}>YouTube</Text>
-                    {' '}creators
-                </Text>
-                <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-                    The community uncovering the best emerging creators with under 5,000 subscribers.
-                </Text>
-            </Animated.View>
-
-            {/* Feature Grid */}
-            <Animated.View entering={FadeInDown.delay(600).duration(800)} style={styles.featureGrid}>
-                <View style={[styles.featureCard, { backgroundColor: cardBg }]}>
-                    <View style={styles.featureIconBg}>
-                        <Ionicons name="people" size={22} color={Colors.primary} />
+            {/* ═══ Hero Section — Gradient diamond orb ═══ */}
+            <Animated.View entering={FadeInUp.delay(100).duration(800)} style={styles.heroSection}>
+                <LinearGradient
+                    colors={isDark ? ['#4C1D95', '#7C3AED', '#4C1D95'] : ['#EDE9FE', '#C4B5FD', '#EDE9FE']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.heroGradient}
+                >
+                    {/* Floating diamond accents */}
+                    <View style={styles.diamondGrid}>
+                        <View style={[styles.floatingDiamond, styles.diamond1]}>
+                            <Ionicons name="diamond" size={28} color={isDark ? '#A78BFA' : '#7C3AED'} />
+                        </View>
+                        <View style={[styles.floatingDiamond, styles.diamond2]}>
+                            <Ionicons name="diamond" size={18} color={isDark ? '#C4B5FD' : '#A78BFA'} />
+                        </View>
+                        <View style={[styles.floatingDiamond, styles.diamond3]}>
+                            <Ionicons name="diamond" size={22} color={isDark ? '#DDD6FE' : '#8B5CF6'} />
+                        </View>
+                        {/* Central large gem icon */}
+                        <View style={styles.centralGem}>
+                            <LinearGradient
+                                colors={['#7C3AED', '#A78BFA']}
+                                style={styles.centralGemGradient}
+                            >
+                                <Text style={styles.centralGemEmoji}>💎</Text>
+                            </LinearGradient>
+                        </View>
+                        <View style={[styles.floatingDiamond, styles.diamond4]}>
+                            <Ionicons name="sparkles" size={16} color={isDark ? '#FCD34D' : '#F59E0B'} />
+                        </View>
+                        <View style={[styles.floatingDiamond, styles.diamond5]}>
+                            <Ionicons name="sparkles" size={12} color={isDark ? '#FDE68A' : '#FBBF24'} />
+                        </View>
                     </View>
-                    <Text style={[styles.featureText, { color: textColor }]}>Creators Under 5k Subs</Text>
-                </View>
-                <View style={[styles.featureCard, { backgroundColor: cardBg }]}>
-                    <View style={styles.featureIconBg}>
-                        <Ionicons name="thumbs-up" size={22} color={Colors.primary} />
-                    </View>
-                    <Text style={[styles.featureText, { color: textColor }]}>Community Voted Gems</Text>
-                </View>
+                </LinearGradient>
             </Animated.View>
 
-            {/* CTA Buttons */}
-            <Animated.View entering={FadeInDown.delay(800).duration(800)} style={styles.ctaSection}>
+            {/* ═══ Tagline ═══ */}
+            <Animated.View entering={FadeInDown.delay(400).duration(800)} style={styles.taglineSection}>
+                <Text style={[styles.tagline, { color: isDark ? Colors.textPrimaryDark : Colors.textPrimaryLight }]}>
+                    <Text style={styles.taglineAccent}>Hidden Gems</Text>
+                    {'\n'}Deserve the{' '}
+                    <Text style={styles.taglineAccent}>Spotlight</Text>
+                </Text>
+            </Animated.View>
+
+            {/* ═══ CTA Buttons ═══ */}
+            <Animated.View entering={FadeInDown.delay(700).duration(800)} style={styles.ctaSection}>
                 <Pressable
-                    style={styles.primaryBtn}
+                    style={({ pressed }) => [styles.primaryBtn, pressed && styles.btnPressed]}
                     onPress={() => router.push('/auth/signup' as any)}
                 >
-                    <Text style={styles.primaryBtnText}>Get Started</Text>
+                    <LinearGradient
+                        colors={['#7C3AED', '#5B21B6']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 0 }}
+                        style={styles.primaryBtnGradient}
+                    >
+                        <Text style={styles.primaryBtnText}>Get Started</Text>
+                        <Ionicons name="arrow-forward" size={18} color={Colors.white} />
+                    </LinearGradient>
                 </Pressable>
 
                 <Pressable
-                    style={[styles.secondaryBtn, {
-                        backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255, 255, 255, 0.5)',
-                        borderColor: isDark ? colors.border : Colors.borderLight,
-                    }]}
+                    style={({ pressed }) => [
+                        styles.secondaryBtn,
+                        {
+                            backgroundColor: isDark ? 'rgba(124, 58, 237, 0.08)' : 'rgba(124, 58, 237, 0.06)',
+                            borderColor: isDark ? 'rgba(167, 139, 250, 0.3)' : 'rgba(124, 58, 237, 0.15)',
+                        },
+                        pressed && styles.btnPressed,
+                    ]}
                     onPress={() => router.push('/auth/login' as any)}
                 >
-                    <Text style={[styles.secondaryBtnText, { color: colors.textSecondary }]}>I already have an account</Text>
+                    <Text style={[styles.secondaryBtnText, { color: isDark ? Colors.primaryLight : Colors.primary }]}>
+                        I already have an account
+                    </Text>
                 </Pressable>
             </Animated.View>
 
-            {/* Footer decoration */}
-            <View style={styles.footerDot} />
+            {/* Footer pill */}
+            <View style={styles.footerPill} />
         </View>
     );
 }
 
 const styles = StyleSheet.create({
     screen: { flex: 1 },
-    header: {
-        flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-        paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, gap: Spacing.xs,
+
+    // ─── Hero ───
+    heroSection: {
+        paddingHorizontal: Spacing.lg,
+        paddingTop: Spacing.md,
+        flex: 1,
+        maxHeight: SCREEN_WIDTH * 1.0,
     },
-    headerIcon: { width: 32, height: 32, justifyContent: 'center', alignItems: 'center' },
-    headerIconText: { fontSize: 20 },
-    headerTitle: {
-        fontSize: 13, fontFamily: 'Inter_700Bold', fontWeight: '700',
-        letterSpacing: 3, textTransform: 'uppercase',
+    heroGradient: {
+        flex: 1,
+        borderRadius: 32,
+        overflow: 'hidden',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
-    heroContainer: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm },
-    heroImage: {
-        width: '100%', aspectRatio: 4 / 3, borderRadius: Radius.xl,
-        overflow: 'hidden', ...Shadows.sm,
+    diamondGrid: {
+        width: '100%',
+        height: '100%',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
-    heroGradient: { ...StyleSheet.absoluteFillObject, backgroundColor: Colors.primary + '40' },
-    headingSection: { paddingHorizontal: Spacing.xl, paddingTop: Spacing['2xl'], alignItems: 'center' },
-    heading: {
-        fontSize: 28, fontFamily: 'Inter_700Bold', fontWeight: '700',
-        textAlign: 'center', letterSpacing: -0.5, lineHeight: 36,
+    floatingDiamond: {
+        position: 'absolute',
+        opacity: 0.7,
     },
-    headingAccent: { color: Colors.primary },
-    subtitle: {
-        fontSize: 15, fontFamily: 'Inter_400Regular',
-        textAlign: 'center', marginTop: Spacing.md, lineHeight: 22, maxWidth: 300, opacity: 0.8,
+    diamond1: { top: '18%', left: '15%' },
+    diamond2: { top: '28%', right: '20%' },
+    diamond3: { bottom: '30%', left: '22%' },
+    diamond4: { top: '15%', right: '28%' },
+    diamond5: { bottom: '22%', right: '15%' },
+    centralGem: {
+        ...Shadows.xl,
     },
-    featureGrid: {
-        flexDirection: 'row', gap: Spacing.md,
-        paddingHorizontal: Spacing.lg, paddingVertical: Spacing.xl,
+    centralGemGradient: {
+        width: 90,
+        height: 90,
+        borderRadius: 45,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
-    featureCard: {
-        flex: 1, aspectRatio: 1, borderRadius: Radius.xl,
-        justifyContent: 'center', alignItems: 'center',
-        gap: Spacing.sm, padding: Spacing.lg, ...Shadows.apple,
+    centralGemEmoji: {
+        fontSize: 42,
     },
-    featureIconBg: {
-        width: 48, height: 48, borderRadius: 24,
-        backgroundColor: Colors.primary + '15', justifyContent: 'center', alignItems: 'center',
+
+    // ─── Tagline ───
+    taglineSection: {
+        paddingHorizontal: Spacing.xl,
+        paddingTop: Spacing['2xl'],
+        alignItems: 'center',
     },
-    featureText: {
-        fontSize: 12, fontFamily: 'Inter_600SemiBold', fontWeight: '600',
-        textAlign: 'center', letterSpacing: -0.2,
+    tagline: {
+        fontSize: 30,
+        fontFamily: 'Inter_700Bold',
+        fontWeight: '700',
+        textAlign: 'center',
+        letterSpacing: -0.8,
+        lineHeight: 40,
     },
+    taglineAccent: {
+        color: '#7C3AED',
+    },
+
+    // ─── CTAs ───
     ctaSection: {
-        paddingHorizontal: Spacing.xl, gap: Spacing.md,
-        marginTop: 'auto', paddingBottom: Spacing.xl,
+        paddingHorizontal: Spacing.xl,
+        gap: Spacing.md,
+        marginTop: 'auto',
+        paddingBottom: Spacing.xl,
     },
     primaryBtn: {
-        backgroundColor: Colors.primary, borderRadius: Radius.md, height: 56,
-        justifyContent: 'center', alignItems: 'center', ...Shadows.glow(Colors.primary),
+        borderRadius: Radius.md,
+        overflow: 'hidden',
+        ...Shadows.glow('#7C3AED'),
+    },
+    primaryBtnGradient: {
+        height: 56,
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: 8,
+        borderRadius: Radius.md,
     },
     primaryBtnText: {
-        fontSize: 16, fontFamily: 'Inter_600SemiBold', fontWeight: '600',
-        color: Colors.white, letterSpacing: -0.2,
+        fontSize: 17,
+        fontFamily: 'Inter_600SemiBold',
+        fontWeight: '600',
+        color: Colors.white,
+        letterSpacing: -0.2,
     },
     secondaryBtn: {
-        borderRadius: Radius.md, height: 56,
-        justifyContent: 'center', alignItems: 'center', borderWidth: 1,
+        borderRadius: Radius.md,
+        height: 56,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
     },
     secondaryBtnText: {
-        fontSize: 16, fontFamily: 'Inter_500Medium', fontWeight: '500', letterSpacing: -0.2,
+        fontSize: 16,
+        fontFamily: 'Inter_500Medium',
+        fontWeight: '500',
+        letterSpacing: -0.2,
     },
-    footerDot: {
-        width: 48, height: 4, borderRadius: 2,
-        backgroundColor: Colors.primary + '30', alignSelf: 'center', marginBottom: Spacing.xl,
+    btnPressed: {
+        opacity: 0.85,
+        transform: [{ scale: 0.98 }],
+    },
+    footerPill: {
+        width: 48,
+        height: 4,
+        borderRadius: 2,
+        backgroundColor: '#7C3AED' + '30',
+        alignSelf: 'center',
+        marginBottom: Spacing.xl,
     },
 });

@@ -137,6 +137,15 @@ service cloud.firestore {
       allow update: if request.auth != null;
       allow delete: if request.auth != null
         && resource.data.submittedBy == request.auth.uid;
+
+      // ── Comments (subcollection of videos) ──
+      match /comments/{commentId} {
+        allow read: if true;
+        allow create: if request.auth != null;
+        allow update: if request.auth != null;
+        allow delete: if request.auth != null
+          && resource.data.userId == request.auth.uid;
+      }
     }
 
     // ── Creators ──
@@ -147,13 +156,12 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // ── Comments ──
-    match /comments/{commentId} {
+    // ── Creator Stats ──
+    match /creatorStats/{userId} {
       allow read: if true;
       allow create: if request.auth != null;
       allow update: if request.auth != null;
-      allow delete: if request.auth != null
-        && resource.data.userId == request.auth.uid;
+      allow delete: if false;
     }
 
     // ── Follows ──

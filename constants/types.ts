@@ -174,7 +174,7 @@ export type ShopCategory =
     | 'Editing Tools'
     | 'Starter Kits';
 
-export type SubscriberRange = 'Under 100' | 'Under 500' | 'Under 1K' | 'Under 5K';
+export type SubscriberRange = 'Under 100' | 'Under 500' | 'Under 1K' | 'Under 50K';
 
 export type SortOption = 'Most Votes' | 'Newest' | 'Trending';
 
@@ -197,5 +197,5 @@ export const SUBSCRIBER_RANGES: SubscriberRange[] = [
     'Under 100',
     'Under 500',
     'Under 1K',
-    'Under 5K',
+    'Under 50K',
 ];

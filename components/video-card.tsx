@@ -29,11 +29,12 @@ interface VideoCardProps {
     video: Video;
     onPress?: () => void;
     onVote?: () => void;
+    isOwner?: boolean;
     compact?: boolean;
     horizontal?: boolean;
 }
 
-export function VideoCard({ video, onPress, onVote, compact, horizontal }: VideoCardProps) {
+export function VideoCard({ video, onPress, onVote, isOwner, compact, horizontal }: VideoCardProps) {
     const [voted, setVoted] = useState(false);
     const [localVotes, setLocalVotes] = useState(video.voteCount);
     const cardScale = useSharedValue(1);
@@ -143,10 +144,18 @@ export function VideoCard({ video, onPress, onVote, compact, horizontal }: Video
                     <View style={styles.categoryChip}>
                         <Text style={styles.categoryText}>{video.category}</Text>
                     </View>
-                    <AnimatedPressable style={[styles.voteBtn, voted && styles.voteBtnActive, voteAnimStyle]} onPress={handleVote}>
-                        <Ionicons name={voted ? 'chevron-up' : 'chevron-up-outline'} size={16} color={voted ? Colors.white : Colors.primary} />
-                        <Text style={[styles.voteCount, voted && styles.voteCountActive]}>{formatCount(localVotes)}</Text>
-                    </AnimatedPressable>
+                    {isOwner ? (
+                        /* Owner: show read-only vote count */
+                        <View style={[styles.voteBtn, { opacity: 0.5 }]}>
+                            <Ionicons name="chevron-up-outline" size={16} color={Colors.primary} />
+                            <Text style={styles.voteCount}>{formatCount(localVotes)}</Text>
+                        </View>
+                    ) : (
+                        <AnimatedPressable style={[styles.voteBtn, voted && styles.voteBtnActive, voteAnimStyle]} onPress={handleVote}>
+                            <Ionicons name={voted ? 'chevron-up' : 'chevron-up-outline'} size={16} color={voted ? Colors.white : Colors.primary} />
+                            <Text style={[styles.voteCount, voted && styles.voteCountActive]}>{formatCount(localVotes)}</Text>
+                        </AnimatedPressable>
+                    )}
                 </View>
             </View>
         </AnimatedPressable>

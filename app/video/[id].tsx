@@ -11,18 +11,19 @@ import { addComment, getComments } from '@/services/comment-service';
 import { db } from '@/services/firebase';
 import { isSubscribed as checkIsSubscribed, subscribeToCreator, unsubscribeFromCreator } from '@/services/subscribe-service';
 import { incrementVoteCount } from '@/services/user-service';
-import { viewVideo, voteVideo } from '@/services/video-service';
+import { deleteVideo, viewVideo, voteVideo } from '@/services/video-service';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { collection, doc, getDoc, getDocs, limit, orderBy, query } from 'firebase/firestore';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
     Dimensions,
     Image,
+    Linking,
     Pressable,
     ScrollView,
     StyleSheet,
@@ -32,7 +33,7 @@ import {
 } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSequence, withSpring } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { WebView } from 'react-native-webview';
+import YoutubePlayer from 'react-native-youtube-iframe';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -65,7 +66,7 @@ export default function VideoDetailScreen() {
     const [isSaved, setIsSaved] = useState(false);
     const [nextVideo, setNextVideo] = useState<Video | null>(null);
     const [isPlaying, setIsPlaying] = useState(false);
-    const webViewRef = useRef<any>(null);
+    const [playerReady, setPlayerReady] = useState(false);
 
     const voteScale = useSharedValue(1);
     const saveScale = useSharedValue(1);
@@ -278,30 +279,46 @@ export default function VideoDetailScreen() {
 
     const ytVideoId = getYouTubeVideoId(video);
     const gemScore = computeGemScore(video);
+    const isOwner = !!(user?.id && video.submittedBy === user.id);
 
-    const embedUrl = ytVideoId
-        ? `https://www.youtube.com/embed/${ytVideoId}?playsinline=1&modestbranding=1&rel=0&showinfo=0&iv_load_policy=3&cc_load_policy=0&fs=1&controls=1`
-        : '';
+    const handleDelete = () => {
+        Alert.alert('Delete Video', 'Are you sure you want to delete this video? This action cannot be undone.', [
+            { text: 'Cancel', style: 'cancel' },
+            {
+                text: 'Delete', style: 'destructive',
+                onPress: async () => {
+                    if (!user?.id) return;
+                    const result = await deleteVideo(id!, user.id);
+                    if (result.success) {
+                        router.back();
+                    } else {
+                        Alert.alert('Error', result.error || 'Failed to delete video');
+                    }
+                },
+            },
+        ]);
+    };
 
-    const playerHtml = ytVideoId ? `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
-    iframe { width: 100%; height: 100%; border: none; }
-  </style>
-</head>
-<body>
-  <iframe
-    src="${embedUrl}"
-    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-    allowfullscreen
-  ></iframe>
-</body>
-</html>` : '';
+    /** Handle YouTube player state changes */
+    const onStateChange = useCallback((state: string) => {
+        if (state === 'playing') setIsPlaying(true);
+        else if (state === 'paused' || state === 'ended') setIsPlaying(false);
+    }, []);
+
+    /** Handle YouTube player errors — fall back to opening YouTube app */
+    const onPlayerError = useCallback((error: string) => {
+        console.log('YouTube player error:', error);
+        if (video?.youtubeUrl) {
+            Alert.alert(
+                'Playback Error',
+                'This video cannot be embedded. Open in YouTube?',
+                [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Open YouTube', onPress: () => Linking.openURL(video.youtubeUrl!) },
+                ]
+            );
+        }
+    }, [video?.youtubeUrl]);
 
     const bgColor = colors.background;
     const cardBg = isDark ? colors.cardElevated : Colors.white;
@@ -323,32 +340,29 @@ export default function VideoDetailScreen() {
             <ScrollView showsVerticalScrollIndicator={false}>
                 {/* Video Player */}
                 <View style={styles.playerContainer}>
-                    {playerHtml ? (
-                        <WebView
-                            ref={webViewRef}
-                            source={{ html: playerHtml }}
-                            style={styles.webview}
-                            allowsFullscreenVideo
-                            allowsInlineMediaPlayback
-                            mediaPlaybackRequiresUserAction={false}
-                            javaScriptEnabled
-                            domStorageEnabled
-                            scrollEnabled={false}
-                            bounces={false}
-                            originWhitelist={['*']}
-                            mixedContentMode="compatibility"
-                            onMessage={(event) => {
-                                try {
-                                    const data = JSON.parse(event.nativeEvent.data);
-                                    if (data.type === 'state') {
-                                        setIsPlaying(data.state === 1);
-                                    }
-                                } catch { }
+                    {ytVideoId ? (
+                        <YoutubePlayer
+                            height={PLAYER_HEIGHT}
+                            width={SCREEN_WIDTH}
+                            videoId={ytVideoId}
+                            play={isPlaying}
+                            onChangeState={onStateChange}
+                            onError={onPlayerError}
+                            onReady={() => setPlayerReady(true)}
+                            webViewProps={{
+                                allowsInlineMediaPlayback: true,
+                                allowsFullscreenVideo: true,
+                                mediaPlaybackRequiresUserAction: false,
                             }}
-                            onError={(e) => console.log('WebView error:', e)}
+                            initialPlayerParams={{
+                                modestbranding: true,
+                                rel: false,
+                                showClosedCaptions: false,
+                                preventFullScreen: false,
+                            }}
                         />
                     ) : (
-                        <View>
+                        <Pressable onPress={() => video?.youtubeUrl && Linking.openURL(video.youtubeUrl)}>
                             <Image source={{ uri: video.thumbnailUrl }} style={styles.playerThumb} />
                             <LinearGradient
                                 colors={['transparent', 'rgba(0,0,0,0.4)']}
@@ -358,7 +372,7 @@ export default function VideoDetailScreen() {
                                     <Ionicons name="play" size={32} color={Colors.white} />
                                 </View>
                             </LinearGradient>
-                        </View>
+                        </Pressable>
                     )}
                 </View>
 
@@ -368,7 +382,7 @@ export default function VideoDetailScreen() {
                         <Text style={[styles.videoTitle, { color: colors.text }]} numberOfLines={3}>{video.title}</Text>
                         <View style={styles.gemScoreChip}>
                             <LinearGradient
-                                colors={['#aca0bb', '#7b6b8f']}
+                                colors={['#7C3AED', '#4C1D95']}
                                 style={styles.gemScoreGradient}
                             >
                                 <Ionicons name="diamond" size={14} color={Colors.white} />
@@ -389,84 +403,107 @@ export default function VideoDetailScreen() {
                             <Text style={[styles.creatorName, { color: colors.text }]}>{video.creatorName}</Text>
                             <Text style={[styles.creatorSubs, { color: colors.textSecondary }]}>{(video.subscriberCount || 0).toLocaleString()} subscribers</Text>
                         </View>
-                        <Pressable
-                            style={[styles.followBtn, subscribed && styles.followBtnActive]}
-                            onPress={handleSubscribe}
-                        >
-                            <Text style={[styles.followText, subscribed && styles.followTextActive]}>
-                                {subscribed ? 'Subscribed' : 'Subscribe'}
-                            </Text>
-                        </Pressable>
+                        {!isOwner && (
+                            <Pressable
+                                style={[styles.followBtn, subscribed && styles.followBtnActive]}
+                                onPress={handleSubscribe}
+                            >
+                                <Text style={[styles.followText, subscribed && styles.followTextActive]}>
+                                    {subscribed ? 'Subscribed' : 'Subscribe'}
+                                </Text>
+                            </Pressable>
+                        )}
                     </View>
 
                     {/* Action Row */}
                     <View style={[styles.actionRow, { borderBottomColor: borderColor }]}>
-                        <AnimatedPressable style={[styles.voteAction, voted && styles.voteActionActive, voteAnimStyle]} onPress={handleVote}>
-                            <Ionicons name={voted ? 'chevron-up-circle' : 'chevron-up-circle-outline'} size={24} color={voted ? Colors.white : Colors.primary} />
-                            <Text style={[styles.voteActionText, voted && styles.voteActionTextActive]}>{voteCount}</Text>
-                        </AnimatedPressable>
-                        <Pressable style={styles.actionBtn}>
-                            <Ionicons name="chatbubble-outline" size={20} color={colors.textSecondary} />
-                            <Text style={[styles.actionBtnText, { color: colors.textSecondary }]}>{comments.length}</Text>
-                        </Pressable>
-                        <AnimatedPressable style={[styles.actionBtn, saveAnimStyle]} onPress={handleSave}>
-                            <Ionicons name={isSaved ? 'bookmark' : 'bookmark-outline'} size={20} color={isSaved ? Colors.accent : colors.textSecondary} />
-                            <Text style={[styles.actionBtnText, { color: isSaved ? Colors.accent : colors.textSecondary }]}>{isSaved ? 'Saved' : 'Save'}</Text>
-                        </AnimatedPressable>
-                        <Pressable style={styles.actionBtn}>
-                            <Ionicons name="flag-outline" size={20} color={colors.textSecondary} />
-                            <Text style={[styles.actionBtnText, { color: colors.textSecondary }]}>Report</Text>
-                        </Pressable>
+                        {isOwner ? (
+                            /* Owner sees Edit + Delete only */
+                            <>
+                                <Pressable style={[styles.ownerActionBtn, { backgroundColor: Colors.primary + '15' }]} onPress={() => router.push(`/(creator-tabs)/upload?editVideoId=${id}` as any)}>
+                                    <Ionicons name="create-outline" size={20} color={Colors.primary} />
+                                    <Text style={[styles.ownerActionText, { color: Colors.primary }]}>Edit</Text>
+                                </Pressable>
+                                <Pressable style={[styles.ownerActionBtn, { backgroundColor: Colors.error + '15' }]} onPress={handleDelete}>
+                                    <Ionicons name="trash-outline" size={20} color={Colors.error} />
+                                    <Text style={[styles.ownerActionText, { color: Colors.error }]}>Delete</Text>
+                                </Pressable>
+                            </>
+                        ) : (
+                            /* Non-owner sees upvote, comments count, save, report */
+                            <>
+                                <AnimatedPressable style={[styles.voteAction, voted && styles.voteActionActive, voteAnimStyle]} onPress={handleVote}>
+                                    <Ionicons name={voted ? 'chevron-up-circle' : 'chevron-up-circle-outline'} size={24} color={voted ? Colors.white : Colors.primary} />
+                                    <Text style={[styles.voteActionText, voted && styles.voteActionTextActive]}>{voteCount}</Text>
+                                </AnimatedPressable>
+                                <Pressable style={styles.actionBtn}>
+                                    <Ionicons name="chatbubble-outline" size={20} color={colors.textSecondary} />
+                                    <Text style={[styles.actionBtnText, { color: colors.textSecondary }]}>{comments.length}</Text>
+                                </Pressable>
+                                <AnimatedPressable style={[styles.actionBtn, saveAnimStyle]} onPress={handleSave}>
+                                    <Ionicons name={isSaved ? 'bookmark' : 'bookmark-outline'} size={20} color={isSaved ? Colors.accent : colors.textSecondary} />
+                                    <Text style={[styles.actionBtnText, { color: isSaved ? Colors.accent : colors.textSecondary }]}>{isSaved ? 'Saved' : 'Save'}</Text>
+                                </AnimatedPressable>
+                                <Pressable style={styles.actionBtn}>
+                                    <Ionicons name="flag-outline" size={20} color={colors.textSecondary} />
+                                    <Text style={[styles.actionBtnText, { color: colors.textSecondary }]}>Report</Text>
+                                </Pressable>
+                            </>
+                        )}
                     </View>
 
-                    {/* Comments */}
-                    <Text style={[styles.sectionTitle, { color: colors.text }]}>💬 Comments ({comments.length})</Text>
-                    <View style={[styles.commentInput, { backgroundColor: cardBg, borderColor }]}>
-                        <Image
-                            source={{ uri: user?.avatar || 'https://i.pravatar.cc/150?img=12' }}
-                            style={styles.commentAvatarSmall}
-                        />
-                        <TextInput
-                            style={[styles.commentTextInput, { color: colors.text }]}
-                            placeholder="Add a comment..."
-                            placeholderTextColor={colors.textMuted}
-                            value={comment}
-                            onChangeText={setComment}
-                        />
-                        <Pressable
-                            style={[styles.commentSendBtn, !comment.trim() && { opacity: 0.4 }]}
-                            onPress={handleComment}
-                            disabled={!comment.trim()}
-                        >
-                            <Ionicons name="send" size={18} color={Colors.primary} />
-                        </Pressable>
-                    </View>
-
-                    {comments.length === 0 ? (
-                        <Text style={[styles.emptyComments, { color: colors.textMuted }]}>No comments yet. Be the first!</Text>
-                    ) : (
-                        comments.map((c) => (
-                            <View key={c.id} style={styles.commentItem}>
-                                <Image source={{ uri: c.userAvatar }} style={styles.commentAvatar} />
-                                <View style={styles.commentContent}>
-                                    <View style={styles.commentHeader}>
-                                        <Text style={[styles.commentUser, { color: colors.text }]}>{c.userName}</Text>
-                                        <Text style={[styles.commentDate, { color: colors.textMuted }]}>
-                                            {new Date(c.createdAt).toLocaleDateString()}
-                                        </Text>
-                                    </View>
-                                    <Text style={[styles.commentText, { color: colors.textSecondary }]}>{c.text}</Text>
-                                    <View style={styles.commentLike}>
-                                        <Ionicons name="heart-outline" size={14} color={colors.textMuted} />
-                                        <Text style={[styles.commentLikeText, { color: colors.textMuted }]}>{c.likes}</Text>
-                                    </View>
-                                </View>
+                    {/* Comments — hidden for owner */}
+                    {!isOwner && (
+                        <>
+                            <Text style={[styles.sectionTitle, { color: colors.text }]}>💬 Comments ({comments.length})</Text>
+                            <View style={[styles.commentInput, { backgroundColor: cardBg, borderColor }]}>
+                                <Image
+                                    source={{ uri: user?.avatar || 'https://i.pravatar.cc/150?img=12' }}
+                                    style={styles.commentAvatarSmall}
+                                />
+                                <TextInput
+                                    style={[styles.commentTextInput, { color: colors.text }]}
+                                    placeholder="Add a comment..."
+                                    placeholderTextColor={colors.textMuted}
+                                    value={comment}
+                                    onChangeText={setComment}
+                                />
+                                <Pressable
+                                    style={[styles.commentSendBtn, !comment.trim() && { opacity: 0.4 }]}
+                                    onPress={handleComment}
+                                    disabled={!comment.trim()}
+                                >
+                                    <Ionicons name="send" size={18} color={Colors.primary} />
+                                </Pressable>
                             </View>
-                        ))
+
+                            {comments.length === 0 ? (
+                                <Text style={[styles.emptyComments, { color: colors.textMuted }]}>No comments yet. Be the first!</Text>
+                            ) : (
+                                comments.map((c) => (
+                                    <View key={c.id} style={styles.commentItem}>
+                                        <Image source={{ uri: c.userAvatar }} style={styles.commentAvatar} />
+                                        <View style={styles.commentContent}>
+                                            <View style={styles.commentHeader}>
+                                                <Text style={[styles.commentUser, { color: colors.text }]}>{c.userName}</Text>
+                                                <Text style={[styles.commentDate, { color: colors.textMuted }]}>
+                                                    {new Date(c.createdAt).toLocaleDateString()}
+                                                </Text>
+                                            </View>
+                                            <Text style={[styles.commentText, { color: colors.textSecondary }]}>{c.text}</Text>
+                                            <View style={styles.commentLike}>
+                                                <Ionicons name="heart-outline" size={14} color={colors.textMuted} />
+                                                <Text style={[styles.commentLikeText, { color: colors.textMuted }]}>{c.likes}</Text>
+                                            </View>
+                                        </View>
+                                    </View>
+                                ))
+                            )}
+                        </>
                     )}
 
-                    {/* Next Recommendation */}
-                    {nextVideo && (
+                    {/* Next Recommendation — hidden for owner */}
+                    {!isOwner && nextVideo && (
                         <>
                             <Text style={[styles.sectionTitle, { color: colors.text }]}>🔮 Up Next</Text>
                             <VideoCard
@@ -491,8 +528,7 @@ const styles = StyleSheet.create({
     },
     backBtn: { width: 40, height: 40, borderRadius: Radius.full, justifyContent: 'center', alignItems: 'center' },
     headerTitle: { fontSize: 17, fontWeight: '700' },
-    playerContainer: { width: SCREEN_WIDTH, height: PLAYER_HEIGHT, backgroundColor: Colors.black, position: 'relative' },
-    webview: { width: '100%', height: '100%', backgroundColor: Colors.black },
+    playerContainer: { width: SCREEN_WIDTH, height: PLAYER_HEIGHT, backgroundColor: Colors.black, position: 'relative', overflow: 'hidden' },
     playerThumb: { width: '100%', height: PLAYER_HEIGHT },
     playerOverlay: { ...StyleSheet.absoluteFillObject, justifyContent: 'center', alignItems: 'center' },
     bigPlayBtn: {
@@ -526,6 +562,12 @@ const styles = StyleSheet.create({
     voteActionTextActive: { color: Colors.white },
     actionBtn: { alignItems: 'center', gap: 4 },
     actionBtnText: { fontSize: 10 },
+    ownerActionBtn: {
+        flexDirection: 'row', alignItems: 'center', gap: 8,
+        paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm,
+        borderRadius: Radius.full,
+    },
+    ownerActionText: { fontSize: 14, fontWeight: '700' },
     sectionTitle: { fontSize: 17, fontWeight: '700', marginTop: Spacing.lg, marginBottom: Spacing.sm },
     commentInput: {
         flexDirection: 'row', alignItems: 'center', borderRadius: Radius.md,

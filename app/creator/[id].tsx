@@ -216,6 +216,7 @@ export default function CreatorProfileScreen() {
                                 key={video.id}
                                 video={video}
                                 compact
+                                isOwner={!!(user?.id && video.submittedBy === user.id)}
                                 onPress={() => router.push(`/video/${video.id}` as any)}
                             />
                         ))}

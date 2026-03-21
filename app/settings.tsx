@@ -33,10 +33,10 @@ import { Image } from 'react-native';
 const PREFS_KEY = '@gemspots_prefs';
 
 const FAQ_ITEMS = [
-    { q: 'What is GemSpots?', a: 'GemSpots is a platform to discover, upvote, and support hidden YouTube creators with under 5K subscribers.' },
+    { q: 'What is GemSpots?', a: 'GemSpots is a platform to discover, upvote, and support hidden YouTube creators with under 50K subscribers.' },
     { q: 'How does Gem Score work?', a: 'Gem Score (0–10) is calculated from upvotes (40%), comments (30%), and YouTube views (30%). Higher engagement = higher score.' },
     { q: 'How do I earn points?', a: 'You earn points by watching videos, voting daily, maintaining streaks, and participating in the community.' },
-    { q: 'Can I submit my own channel?', a: 'Yes! If you have under 5K subscribers, you can submit your videos via the Upload tab.' },
+    { q: 'Can I submit my own channel?', a: 'Yes! If you have under 50K subscribers, you can submit your videos via the Upload tab.' },
     { q: 'How do brand deals work?', a: 'Brands post campaigns for small creators. You can apply through the Brand Deals section in your profile.' },
     { q: 'How do I delete my account?', a: 'Contact support@gemspots.app and we will process your request within 48 hours.' },
 ];
@@ -388,7 +388,7 @@ export default function SettingsScreen() {
                                 <Text style={[styles.aboutTitle, { color: textColor }]}>💎 GemSpots v1.0.0</Text>
                                 <Text style={[styles.aboutText, { color: colors.textSecondary }]}>
                                     GemSpots is a community-driven platform that helps you discover and support
-                                    hidden YouTube creators with under 5,000 subscribers. We believe great content
+                                    hidden YouTube creators with under 50,000 subscribers. We believe great content
                                     deserves to be seen, regardless of subscriber count.
                                 </Text>
                                 <View style={styles.aboutStats}>
