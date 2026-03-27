@@ -22,12 +22,12 @@ import { useTheme } from '@/contexts/theme-context';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-type Role = 'viewer' | 'creator' | 'brand';
+type Role = 'viewer' | 'creator';
 
 const ROLES: { key: Role; title: string; desc: string; icon: keyof typeof Ionicons.glyphMap }[] = [
     { key: 'viewer', title: 'Viewer', desc: 'Explore spots', icon: 'eye' },
     { key: 'creator', title: 'Creator', desc: 'Share gems', icon: 'compass' },
-    { key: 'brand', title: 'Brand', desc: 'Partner up', icon: 'handshake-outline' as any },
+
 ];
 
 export default function SignupScreen() {

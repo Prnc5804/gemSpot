@@ -6,6 +6,7 @@ import type { User } from '@/constants/types';
 import {
     createUserWithEmailAndPassword,
     signOut as firebaseSignOut,
+    sendPasswordResetEmail,
     signInWithEmailAndPassword,
     updateProfile,
 } from 'firebase/auth';
@@ -84,6 +85,13 @@ export async function signIn(email: string, password: string): Promise<User> {
  */
 export async function signOut(): Promise<void> {
     await firebaseSignOut(auth);
+}
+
+/**
+ * Send password reset email
+ */
+export async function resetPassword(email: string): Promise<void> {
+    await sendPasswordResetEmail(auth, email);
 }
 
 /**

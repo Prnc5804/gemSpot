@@ -12,6 +12,7 @@ import {
     KeyboardAvoidingView,
     Platform,
     ActivityIndicator,
+    Alert,
     ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -34,6 +35,7 @@ export default function LoginScreen() {
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [resetLoading, setResetLoading] = useState(false);
 
     const btnScale = useSharedValue(1);
     const btnAnimStyle = useAnimatedStyle(() => ({
@@ -58,6 +60,29 @@ export default function LoginScreen() {
             setError(e.message || 'Login failed. Please try again.');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleForgotPassword = async () => {
+        if (!email.trim()) {
+            Alert.alert('Enter Email', 'Please enter your email address first, then tap "Forgot password?".');
+            return;
+        }
+        setResetLoading(true);
+        try {
+            const { resetPassword } = await import('@/services/auth-service');
+            await resetPassword(email.trim());
+            Alert.alert(
+                'Check Your Email',
+                'A password reset link has been sent to ' + email.trim() + '. Follow the link to set a new password.',
+            );
+        } catch (e: any) {
+            const msg = e?.code === 'auth/user-not-found'
+                ? 'No account found with this email.'
+                : e?.message || 'Failed to send reset email. Please try again.';
+            Alert.alert('Reset Failed', msg);
+        } finally {
+            setResetLoading(false);
         }
     };
 
@@ -109,8 +134,8 @@ export default function LoginScreen() {
                         <View>
                             <View style={styles.passwordHeader}>
                                 <Text style={[styles.inputLabel, { color: textColor }]}>Password</Text>
-                                <Pressable>
-                                    <Text style={styles.forgotText}>Forgot password?</Text>
+                                <Pressable onPress={handleForgotPassword} disabled={resetLoading}>
+                                    <Text style={styles.forgotText}>{resetLoading ? 'Sending...' : 'Forgot password?'}</Text>
                                 </Pressable>
                             </View>
                             <View style={[styles.inputContainer, { backgroundColor: inputBg, borderColor: inputBorder }]}>

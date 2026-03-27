@@ -257,6 +257,12 @@ export default function VideoDetailScreen() {
         return '';
     };
 
+    /** Handle YouTube player state changes — must be above early returns */
+    const onStateChange = useCallback((state: string) => {
+        if (state === 'playing') setIsPlaying(true);
+        else if (state === 'paused' || state === 'ended') setIsPlaying(false);
+    }, []);
+
     if (loading) {
         return (
             <View style={[styles.screen, { paddingTop: insets.top, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }]}>
@@ -299,26 +305,7 @@ export default function VideoDetailScreen() {
         ]);
     };
 
-    /** Handle YouTube player state changes */
-    const onStateChange = useCallback((state: string) => {
-        if (state === 'playing') setIsPlaying(true);
-        else if (state === 'paused' || state === 'ended') setIsPlaying(false);
-    }, []);
 
-    /** Handle YouTube player errors — fall back to opening YouTube app */
-    const onPlayerError = useCallback((error: string) => {
-        console.log('YouTube player error:', error);
-        if (video?.youtubeUrl) {
-            Alert.alert(
-                'Playback Error',
-                'This video cannot be embedded. Open in YouTube?',
-                [
-                    { text: 'Cancel', style: 'cancel' },
-                    { text: 'Open YouTube', onPress: () => Linking.openURL(video.youtubeUrl!) },
-                ]
-            );
-        }
-    }, [video?.youtubeUrl]);
 
     const bgColor = colors.background;
     const cardBg = isDark ? colors.cardElevated : Colors.white;
@@ -347,12 +334,15 @@ export default function VideoDetailScreen() {
                             videoId={ytVideoId}
                             play={isPlaying}
                             onChangeState={onStateChange}
-                            onError={onPlayerError}
                             onReady={() => setPlayerReady(true)}
+                            forceAndroidAutoplay={false}
+                            webViewStyle={{ opacity: 0.99 }}
                             webViewProps={{
                                 allowsInlineMediaPlayback: true,
-                                allowsFullscreenVideo: true,
                                 mediaPlaybackRequiresUserAction: false,
+                                androidLayerType: 'hardware',
+                                startInLoadingState: true,
+                                renderToHardwareTextureAndroid: true,
                             }}
                             initialPlayerParams={{
                                 modestbranding: true,
